@@ -50,7 +50,7 @@ def processImages(exerciseName):
     return processedImages
 
             
-images = processImages("Deadlift")
+images = processImages("deadlift")
 # Display probability maps
 for im in images:
     plt.figure(figsize=(10, 5))
