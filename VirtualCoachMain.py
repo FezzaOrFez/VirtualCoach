@@ -47,10 +47,18 @@ def processImages(exerciseName):
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
             im = im[0:400,175:500]
             processedImages.append(im)
+        if exerciseName.lower() == "bench_press":
+            im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+            im = im[75:400,75:400]
+            processedImages.append(im)
+        if exerciseName.lower() == "squat":
+            im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+            im = im[0:400,0:180]
+            processedImages.append(im)
     return processedImages
 
             
-images = processImages("deadlift")
+images = processImages("squat")
 # Display probability maps
 for im in images:
     plt.figure(figsize=(10, 5))
