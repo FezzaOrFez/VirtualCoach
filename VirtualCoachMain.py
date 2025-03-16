@@ -2,35 +2,19 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-
-from zipfile import ZipFile
-from urllib.request import urlretrieve
+import threading
 
 from IPython.display import YouTubeVideo, display, Image
 
-protoFile   = os.path.abspath("pose_deploy_linevec_faster_4_stages.prototxt")
-weightsFile = os.path.join("model", "pose_iter_160000.caffemodel")
+import HumanPoseEstimation
+import Reference
+import UserTechnique
 
-nPoints = 15
-POSE_PAIRS = [
-    [0, 1],
-    [1, 2],
-    [2, 3],
-    [3, 4],
-    [1, 5],
-    [5, 6],
-    [6, 7],
-    [1, 14],
-    [14, 8],
-    [8, 9],
-    [9, 10],
-    [14, 11],
-    [11, 12],
-    [12, 13],
-]
+referenceDeadliftTechnique = Reference.Reference([],[],None)
+referenceBenchPressTechnique = Reference.Reference([],[],None)
+referenceSquatTechnique = Reference.Reference([],[],None)
 
-net = cv2.dnn.readNetFromCaffe(protoFile, weightsFile)
-
+# load reference images
 def loadImages(folderName):
     setOfImages = []
     for files in os.listdir(folderName):
@@ -39,11 +23,11 @@ def loadImages(folderName):
             setOfImages.append(im)
     return setOfImages
 
-def processImages(exerciseName):
+# preprocossing reference images for useage
+def processRefImages(exerciseName):
     processedImages = []
 
     setImages = loadImages(exerciseName.lower())
-
     for im in setImages:
         if exerciseName.lower() == "deadlift":
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
@@ -53,97 +37,145 @@ def processImages(exerciseName):
             im = cv2.resize(im, (480,360))
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
             im = im[75:400,75:400]
+            im = cv2.rotate(im, cv2.ROTATE_90_COUNTERCLOCKWISE)
             processedImages.append(im)
         if exerciseName.lower() == "squat":
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
             im = im[0:400,0:180]
             processedImages.append(im)
-    return processedImages
+    referenceTechnique = None
+    if exerciseName.lower() == "deadlift":
+        referenceDeadliftTechnique.frames = processedImages
+        referenceTechnique = referenceDeadliftTechnique
+    elif exerciseName.lower() == "bench_press":
+        referenceBenchPressTechnique.frames = processedImages
+        referenceTechnique = referenceBenchPressTechnique
+    elif exerciseName.lower() == "squat":
+        referenceSquatTechnique.frames = processedImages
+        referenceTechnique = referenceSquatTechnique
+    
+    return referenceTechnique
 
-def poseEstImages(imageList):
-    inim = 1
-    for im in imageList:
-        inWidth  = im.shape[1]
-        inHeight = im.shape[0]
-        netInputSize = (368, 368)
-        inpBlob = cv2.dnn.blobFromImage(im, 1.0 / 255, netInputSize, (0, 0, 0), swapRB=True, crop=False)
-        net.setInput(inpBlob)
+       
+# Add Video
+def addUserVideo(technique):
+    print("Select Video Input Method: 1 = Input Video from Files, 2 = Record Video")
+    x = input()
+    if x == "1":
+        inputVideo(technique)
+    elif x == "2":
+        recordVideo()
+    else:
+        print("error: incorrect input")
 
-        # Forward Pass
-        output = net.forward()
-
-        # Display probability maps
-        #plt.figure(figsize=(20, 5))
-        for i in range(nPoints):
-            probMap = output[0, i, :, :]
-            displayMap = cv2.resize(probMap, (inWidth, inHeight), cv2.INTER_LINEAR)
-            
-            # plt.subplot(2, 8, i + 1)
-            # plt.axis("off")
-            # plt.imshow(displayMap, cmap="jet")
-        # X and Y Scale
-        scaleX = inWidth  / output.shape[3]
-        scaleY = inHeight / output.shape[2]
-
-        # Empty list to store the detected keypoints
-        points = []
-
-        # Treshold
-        threshold = 0.1
-
-        for i in range(nPoints):
-            # Obtain probability map
-            probMap = output[0, i, :, :]
-
-            # Find global maxima of the probMap.
-            minVal, prob, minLoc, point = cv2.minMaxLoc(probMap)
-
-            # Scale the point to fit on the original image
-            x = scaleX * point[0]
-            y = scaleY * point[1]
-
-            if prob > threshold:
-                # Add the point to the list if the probability is greater than the threshold
-                points.append((int(x), int(y)))
+addedVideoFrames = []
+# Input Video
+def inputVideo(technique):
+    count = 0
+    videoName = input("Type Video Name: ")
+    videoLink = cv2.VideoCapture(videoName)
+    numFrames = int(videoLink.get(cv2.CAP_PROP_FRAME_COUNT))
+    if not videoLink.isOpened():
+        print("Error: could not open video file")
+    else:
+        while videoLink.isOpened():
+            ret, frame = videoLink.read()
+            if ret:
+                if technique == "deadlift":
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    referShape = referenceDeadliftTechnique.frames[0]
+                    height, width, channels = referShape.shape
+                    frame = cv2.resize(frame, (height,width))
+                    addedVideoFrames.append(frame)
+                    count+=numFrames/7
+                    videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
+                    plt.imshow(frame)
+                    plt.show()
+                elif technique == "bench_press":
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    referShape = referenceBenchPressTechnique.frames[0]
+                    height, width, channels = referShape.shape
+                    frame = cv2.resize(frame, (height,width))
+                    addedVideoFrames.append(frame)
+                    count+=numFrames/7
+                    videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
+                    plt.imshow(frame)
+                    plt.show()
+                elif technique == "squat":
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    referShape = referenceSquatTechnique.frames[0]
+                    height, width, channels = referShape.shape
+                    frame = cv2.resize(frame, (height,width))
+                    addedVideoFrames.append(frame)
+                    count+=numFrames/7
+                    videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
+                    plt.imshow(frame)
+                    plt.show()
             else:
-                points.append(None)
-        imPoints = im.copy()
-        imSkeleton = im.copy()
+                break
+    videoLink.release()
 
-        # Draw points
-        for i, p in enumerate(points):
-            cv2.circle(imPoints, p, 8, (255, 255, 0), thickness=-1, lineType=cv2.FILLED)
-            cv2.putText(imPoints, "{}".format(i), p, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, lineType=cv2.LINE_AA)
-
-        # Draw skeleton
-        for pair in POSE_PAIRS:
-            partA = pair[0]
-            partB = pair[1]
-
-            if points[partA] and points[partB]:
-                cv2.line(imSkeleton, points[partA], points[partB], (255, 255, 0), 2)
-                cv2.circle(imSkeleton, points[partA], 8, (255, 0, 0), thickness=-1, lineType=cv2.FILLED)
-
-        # plt.figure(figsize=(50, 50))
-
-        plt.subplot(4,3,inim)
-        plt.axis("off")
-        plt.imshow(imSkeleton)
-        inim+=1
-    plt.show()
         
 
 
+# Calculate Feedback
+def calculateFeedback():
+    print("tbd")
 
-images = processImages("squat")
-# Display probability maps
-inim=1
-for im in images:
-    plt.subplot(4,3,inim)
-    plt.imshow(im)
-    plt.axis('off')
-    inim += 1
+# Output Feedback
+def outputFeedback():
+    print("output feedback tbd")
 
+# Select Sport
+def selectSport():
+    print("select sport tbd")
 
+# Select Technique
+def selectTechnique():
+    print("select technique tbd")
 
-poseEstImages(images)
+# Record Video
+def recordVideo():
+    print("record video tbd")
+
+# View History
+def viewHistory():
+    print("view history tbd")
+
+# Delete History
+def deleteHistory():
+    print("delete history tbd")
+
+# Encryption
+def footageEncryption():
+    print("encryption tbd")
+
+# Decryption
+def footageDecryption():
+    print("decryption tbd")
+
+#main function for easability
+def main():
+    #start processing reference images
+    refImages = processRefImages("deadlift")
+    # inim=1
+    # for im in refImages.frames:
+    #     plt.subplot(4,3,inim)
+    #     plt.imshow(im)
+    #     plt.axis('off')
+    #     inim += 1
+
+    #thread to start adding user video
+    StartThread = threading.Thread(target=addUserVideo,args=("deadlift",))
+    StartThread.start()
+    #conduct hpe on reference videos
+    pointsArray, HPEdImages = HumanPoseEstimation.poseEstImages(refImages.frames)
+    referenceDeadliftTechnique.skeleton = HPEdImages
+    referenceDeadliftTechnique.points = pointsArray
+    StartThread.join()
+    #conduct hpe on added video
+    HumanPoseEstimation.poseEstImages(addedVideoFrames)
+    #calculate feedback
+    calculateFeedback
+
+main()
