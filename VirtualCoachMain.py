@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import threading
+import math
 
 from IPython.display import YouTubeVideo, display, Image
 
@@ -10,9 +11,14 @@ import HumanPoseEstimation
 import Reference
 import UserTechnique
 
-referenceDeadliftTechnique = Reference.Reference([],[],None)
-referenceBenchPressTechnique = Reference.Reference([],[],None)
-referenceSquatTechnique = Reference.Reference([],[],None)
+referenceDeadliftTechnique = Reference.Deadlift([],[],None)
+referenceBenchPressTechnique = Reference.BenchPress([],[],None)
+referenceSquatTechnique = Reference.Squat([],[],None)
+usersTechnique = UserTechnique.UserTechnique([],[],None)
+
+# 0=head,1=neck,2=left shoulder,3=left elbow,4=left hand,5=right shoulder,6=right elbow,7=right hand,8=left hip,9=left knee,10=left foot,11=right hip,12=right knee,13=right foot,14=centre
+pointKey=["HEAD","NECK","LEFTSHOULDER","LEFTELBOW","LEFTHAND","RIGHTSHOULDER","RIGHTELBOW","RIGHTHAND","LEFTHIP","LEFTKNEE","LEFTFOOT","RIGHTHIP","RIGHTKNEE","RIGHTFOOT","CENTRE"]
+
 
 # load reference images
 def loadImages(folderName):
@@ -68,7 +74,7 @@ def addUserVideo(technique):
     else:
         print("error: incorrect input")
 
-addedVideoFrames = []
+
 # Input Video
 def inputVideo(technique):
     count = 0
@@ -86,7 +92,7 @@ def inputVideo(technique):
                     referShape = referenceDeadliftTechnique.frames[0]
                     height, width, channels = referShape.shape
                     frame = cv2.resize(frame, (height,width))
-                    addedVideoFrames.append(frame)
+                    usersTechnique.frames.append(frame)
                     count+=numFrames/7
                     videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
                     plt.imshow(frame)
@@ -96,7 +102,7 @@ def inputVideo(technique):
                     referShape = referenceBenchPressTechnique.frames[0]
                     height, width, channels = referShape.shape
                     frame = cv2.resize(frame, (height,width))
-                    addedVideoFrames.append(frame)
+                    usersTechnique.frames.append(frame)
                     count+=numFrames/7
                     videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
                     plt.imshow(frame)
@@ -106,7 +112,7 @@ def inputVideo(technique):
                     referShape = referenceSquatTechnique.frames[0]
                     height, width, channels = referShape.shape
                     frame = cv2.resize(frame, (height,width))
-                    addedVideoFrames.append(frame)
+                    usersTechnique.frames.append(frame)
                     count+=numFrames/7
                     videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
                     plt.imshow(frame)
@@ -115,12 +121,32 @@ def inputVideo(technique):
                 break
     videoLink.release()
 
-        
+# def joinPoints(imageSet):
+#     iterate=0
+#     frameIte=0
+#     while frameIte != len(imageSet.frames):
+#         pointTuple = []
+#         for point in imageSet.points[frameIte]:
+#             pointTuple.append((pointKey[iterate],point))
+#             iterate+=1
+#         imageSet.frameSet.append(pointTuple)
+#         frameIte+=1
 
+# Calculate Distance
+def calcDistance(pointA, pointB):
+    distance = pointA
+
+# Calculate Angle
+def calcAngle(pointA, pointB, pointC):
+    print("tbd")
 
 # Calculate Feedback
 def calculateFeedback():
     print("tbd")
+    #for now compare deadlift and user technique
+    frame = usersTechnique.points[4]
+    print(calcDistance(frame[0],frame[1]))
+
 
 # Output Feedback
 def outputFeedback():
@@ -174,8 +200,11 @@ def main():
     referenceDeadliftTechnique.points = pointsArray
     StartThread.join()
     #conduct hpe on added video
-    HumanPoseEstimation.poseEstImages(addedVideoFrames)
-    #calculate feedback
-    calculateFeedback
+    pointsArray, HPEdImages = HumanPoseEstimation.poseEstImages(usersTechnique.frames)
+    usersTechnique.skeleton = HPEdImages
+    usersTechnique.points = pointsArray
 
+    #calculate feedback
+    calculateFeedback()
+    
 main()
