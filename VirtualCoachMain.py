@@ -10,12 +10,14 @@ from IPython.display import YouTubeVideo, display, Image
 import HumanPoseEstimation
 import Reference
 import UserTechnique
+import feedbackArea
 
-referenceDeadliftTechnique = Reference.Deadlift([],[],None)
-referenceBenchPressTechnique = Reference.BenchPress([],[],None)
-referenceSquatTechnique = Reference.Squat([],[],None)
+referenceDeadliftTechnique = Reference.Reference([],[],None)
+referenceBenchPressTechnique = Reference.Reference([],[],None)
+referenceSquatTechnique = Reference.Reference([],[],None)
 usersTechnique = UserTechnique.UserTechnique([],[],None)
 
+deadliftFeedback = []
 # 0=head,1=neck,2=left shoulder,3=left elbow,4=left hand,5=right shoulder,6=right elbow,7=right hand,8=left hip,9=left knee,10=left foot,11=right hip,12=right knee,13=right foot,14=centre
 pointKey=["HEAD","NECK","LEFTSHOULDER","LEFTELBOW","LEFTHAND","RIGHTSHOULDER","RIGHTELBOW","RIGHTHAND","LEFTHIP","LEFTKNEE","LEFTFOOT","RIGHTHIP","RIGHTKNEE","RIGHTFOOT","CENTRE"]
 
@@ -95,8 +97,8 @@ def inputVideo(technique):
                     usersTechnique.frames.append(frame)
                     count+=numFrames/7
                     videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
-                    plt.imshow(frame)
-                    plt.show()
+                    # plt.imshow(frame)
+                    # plt.show()
                 elif technique == "bench_press":
                     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                     referShape = referenceBenchPressTechnique.frames[0]
@@ -105,8 +107,8 @@ def inputVideo(technique):
                     usersTechnique.frames.append(frame)
                     count+=numFrames/7
                     videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
-                    plt.imshow(frame)
-                    plt.show()
+                    # plt.imshow(frame)
+                    # plt.show()
                 elif technique == "squat":
                     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                     referShape = referenceSquatTechnique.frames[0]
@@ -115,8 +117,8 @@ def inputVideo(technique):
                     usersTechnique.frames.append(frame)
                     count+=numFrames/7
                     videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
-                    plt.imshow(frame)
-                    plt.show()
+                    # plt.imshow(frame)
+                    # plt.show()
             else:
                 break
     videoLink.release()
@@ -134,18 +136,70 @@ def inputVideo(technique):
 
 # Calculate Distance
 def calcDistance(pointA, pointB):
-    distance = pointA
+    distance = math.sqrt(((pointB[0] - pointA[0])**2) + ((pointB[1] - pointA[1])**2))
+    return distance
 
 # Calculate Angle
 def calcAngle(pointA, pointB, pointC):
-    print("tbd")
+    angle = math.degrees(math.atan2(pointC[1]-pointB[1], pointC[0]-pointB[0]) - math.atan2(pointA[1]-pointB[1], pointA[0]-pointB[0]))
+    if angle >=180:
+        angle = angle - 360
+    return abs(angle)
 
 # Calculate Feedback
 def calculateFeedback():
     print("tbd")
     #for now compare deadlift and user technique
     frame = usersTechnique.points[4]
-    print(calcDistance(frame[0],frame[1]))
+    print("Distance: ",calcDistance(frame[0],frame[1]))
+    print("Angle: ",calcAngle(frame[0],frame[1], frame[2]))
+
+    # 0=head,1=neck,2=left shoulder,3=left elbow,4=left hand,5=right shoulder,6=right elbow,7=right hand,8=left hip,9=left knee,10=left foot,11=right hip,12=right knee,13=right foot,14=centre
+    #deadlift
+    #where could mistakes be made in technique
+    # legs distance, angle of back, leg and hip distance, arms distance
+    deadliftFeedback.append(feedbackArea.Feedback("Legs Distance",[10,13],"Distance",[]))
+    deadliftFeedback.append(feedbackArea.Feedback("Back Angle",[1,14],"Angle",[]))
+
+    #compare the videos in these areas
+    for FeedbackArea in deadliftFeedback:
+        if FeedbackArea.type == "Distance":
+            userDistance = calcDistance(usersTechnique.points[4][10], usersTechnique.points[4][13])
+            refDistance = calcDistance(referenceDeadliftTechnique.points[4][10], referenceDeadliftTechnique.points[4][13])
+            print(userDistance, "-", refDistance ,"=",userDistance-refDistance)
+        elif FeedbackArea.type == "Angle":
+            userAngle = calcAngle(usersTechnique.points[4][1], usersTechnique.points[4][14],[0,usersTechnique.points[4][14][1]])
+            refAngle = calcAngle(referenceDeadliftTechnique.points[4][1], referenceDeadliftTechnique.points[4][14],[0,referenceDeadliftTechnique.points[4][14][1]])
+            print(referenceDeadliftTechnique.points[4][1],",", referenceDeadliftTechnique.points[4][14],",",(0,referenceDeadliftTechnique.points[4][14][1]))
+            print(userAngle, "-", refAngle ,"=",userAngle-refAngle)
+        plt.imshow(referenceDeadliftTechnique.skeleton[4])
+        plt.show()
+
+    #boundary checks to see how well they compare against the reference
+
+    #return areas for ouputting feedback
+
+    #bench press
+    #where could mistakes be made in technique
+
+    #compare the videos in these areas
+
+    #boundary checks to see how well they compare against the reference
+
+    #return areas for ouputting feedback
+
+    #squat
+    #where could mistakes be made in technique
+
+    #compare the videos in these areas
+
+    #boundary checks to see how well they compare against the reference
+
+    #return areas for ouputting feedback
+
+
+    #kern - ai bot coursework for organising feedback
+
 
 
 # Output Feedback
@@ -203,7 +257,9 @@ def main():
     pointsArray, HPEdImages = HumanPoseEstimation.poseEstImages(usersTechnique.frames)
     usersTechnique.skeleton = HPEdImages
     usersTechnique.points = pointsArray
-
+    print(usersTechnique.points[4])
+    plt.imshow(usersTechnique.skeleton[4])
+    plt.show()
     #calculate feedback
     calculateFeedback()
     
