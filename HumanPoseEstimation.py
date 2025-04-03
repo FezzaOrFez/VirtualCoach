@@ -31,6 +31,7 @@ net = cv2.dnn.readNetFromCaffe(protoFile, weightsFile)
 
 #Calculate HPE
 def poseEstImages(imageList):
+    print("Calculating Pose Estimation")
     inim = 1
     HPEdImages = []
     pointsArray = []

@@ -1,0 +1,18 @@
+{
+	"referenceCrop" : [0,400,175,500],
+	"description" : "Deadlifting is one of the main sports of Powerlifting and the competitive scene",
+	"areas": [
+	       {
+		    "area": "Legs Distance",
+		    "type": "Distance",
+		    "messages": true,
+           	"points": [10,13]
+ 	       },
+	       {
+	        "area": "Back Angle",
+		    "type": "Angle",
+		    "messages": true,
+ 	        "points": [1,14]
+ 	       }
+	    ]
+}
