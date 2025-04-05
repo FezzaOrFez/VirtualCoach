@@ -306,11 +306,11 @@ def calculateFeedback(currentTechnique, historyCheck, pointsList, currentSport):
     print(feedbackList)
 
     #return areas for ouputting feedback
-    outputFeedback(feedbackList)
-    if(historyCheck == False):
-        sendToHistory(currentTechnique)
-    else:
-        menu()
+    # outputFeedback(feedbackList)
+    # if(historyCheck == False):
+    #     sendToHistory(currentTechnique)
+    # else:
+    #     menu()
 
 # Output Feedback
 def outputFeedback(differencesList):
@@ -554,9 +554,5 @@ def main():
             x.skeleton = HPEdImages
             x.points = pointsArray
     #thread to start adding user video
-    menu()
     
-    
-main()
-
 
