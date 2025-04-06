@@ -98,13 +98,12 @@ def poseEstImages(imageList):
 
         # plt.figure(figsize=(50, 50))
 
-        plt.subplot(4,3,inim)
-        plt.axis("off")
-        plt.imshow(imSkeleton)
+        # plt.subplot(4,3,inim)
+        # plt.axis("off")
+        # plt.imshow(imSkeleton)
         inim+=1
         pointsArray.append(points)
         HPEdImages.append(imSkeleton)
-    plt.show()
     return(pointsArray, HPEdImages)
     
  

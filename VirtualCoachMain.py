@@ -9,6 +9,7 @@ import time
 import datetime
 import json
 import binascii
+from io import BytesIO
 from shutil import rmtree
 from tkinter import filedialog
 from cryptography.fernet import Fernet
@@ -18,10 +19,12 @@ import HumanPoseEstimation
 import Reference
 import UserTechnique
 import feedbackArea
+import VirtualCoachGUI
 
 referenceTechniques = []
 
 usersTechnique = UserTechnique.UserTechnique([],[],None)
+feedbackList = []
 
 provideFeedback = []
 # 0=head,1=neck,2=left shoulder,3=left elbow,4=left hand,5=right shoulder,6=right elbow,7=right hand,8=left hip,9=left knee,10=left foot,11=right hip,12=right knee,13=right foot,14=centre
@@ -149,27 +152,30 @@ def inputVideo(technique):
                 dim = (int(frame.shape[1] * r),height)
                 frame = cv2.resize(frame, dim,interpolation=cv2.INTER_AREA)
                 usersTechnique.frames.append(frame)
-                count+=numFrames/7
+                count+=numFrames/15
                 videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
             else:
                 break
     videoLink.release()
+    quickList = []
+    quickList.append(usersTechnique.frames[int(len(usersTechnique.frames)/2)])
+    quickList.append(usersTechnique.frames[int(len(usersTechnique.frames)/2)])
+    pointsArray, HPEdImages = HumanPoseEstimation.poseEstImages(quickList)
+    frameCropped = []
+    height, width, channels = HPEdImages[0].shape
+    for frame in usersTechnique.frames:
+        print((pointsArray[0][0]))
+        frameCropped.append(frame[int(pointsArray[0][0][0])-25:height,0:width])
+    plt.imshow(frameCropped[0])
+    plt.show()
+    usersTechnique.frames = frameCropped
+    
 
 # Record Video
-def recordVideo(technique):
-    print("A timer will countdown and will start recording after reaching 0 ")
-    print("Another timer will then start to time the recording process ")
-    try:
-        countdown = int(input("How many seconds for the countdown? "))
-        timing = int(input("How many seconds for the recording process "))
-        x = int(input("Press enter when you are ready to start "))
-    except ValueError:
-        print("Invalid Value")
-        menu()
+def recordVideo(technique,countdown,timing):
 
     countdown = int(countdown)
     timing = int(timing)
-
     for i in range(countdown):
         time.sleep(1)
         print(countdown - i)
@@ -180,7 +186,7 @@ def recordVideo(technique):
         print("Cannot open camera")
         exit()
     
-    recVideo = cv2.VideoWriter("userRecordedVideo.mp4", cv2.VideoWriter_fourcc("M", "J", "P", "G"), 10, (int(cap.get(3)), int(cap.get(4))))
+    recVideo = cv2.VideoWriter("userRecordedVideo.avi", cv2.VideoWriter_fourcc("M", "J", "P", "G"), 10, (int(cap.get(3)), int(cap.get(4))))
 
     timingSet = time.time() + int(timing)
 
@@ -205,7 +211,7 @@ def recordVideo(technique):
     numFrames = int(recVideo.get(cv2.CAP_PROP_FRAME_COUNT))
     recVideo.release()
     count = 0
-    videoLink = cv2.VideoCapture("userRecordedVideo.mp4")
+    videoLink = cv2.VideoCapture("userRecordedVideo.avi")
     numFrames = int(videoLink.get(cv2.CAP_PROP_FRAME_COUNT))
     if not videoLink.isOpened():
         print("Error: could not open video file")
@@ -222,22 +228,52 @@ def recordVideo(technique):
                     dim = (int(frame.shape[1] * r),height)
                     frame = cv2.resize(frame, dim,interpolation=cv2.INTER_AREA)
                     usersTechnique.frames.append(frame)
-                    count+=numFrames/7
-                    videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
+                    # count+=numFrames/7
+                    # videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
             else:
                 break
         videoLink.release()
+        os.remove("userRecordedVideo.avi")
+        
+
+def temporalAnalysis(technique):
+    frameClosest = []
+    pointsClosest = []
+    for x in referenceTechniques:
+        if x.technique == technique:
+            for frame in x.points:
+                closest = 100000
+                frameref = 0
+                currentClosest = 0
+                for fr in usersTechnique.points:
+                    if fr[14] != None and frame[14]!= None:
+                        dis = calcDistance(fr[0],frame[0])
+                        if dis < closest:
+                            closest = dis
+                            currentClosest = frameref
+                    frameref+=1
+                print(frameref)
+                pointsClosest.append(usersTechnique.points[currentClosest])
+                frameClosest.append(usersTechnique.skeleton[currentClosest])
+    usersTechnique.skeleton = frameClosest
+    usersTechnique.points = pointsClosest
 
 # Calculate Distance
 def calcDistance(pointA, pointB):
-    distance = math.sqrt(((pointB[0] - pointA[0])**2) + ((pointB[1] - pointA[1])**2))
+    try:
+        distance = math.sqrt(((pointB[0] - pointA[0])**2) + ((pointB[1] - pointA[1])**2))
+    except TypeError:
+        distance = 0
     return distance
 
 # Calculate Angle
 def calcAngle(pointA, pointB, pointC):
-    angle = math.degrees(math.atan2(pointC[1]-pointB[1], pointC[0]-pointB[0]) - math.atan2(pointA[1]-pointB[1], pointA[0]-pointB[0]))
-    if angle >=180:
-        angle = angle - 360
+    try:
+        angle = math.degrees(math.atan2(pointC[1]-pointB[1], pointC[0]-pointB[0]) - math.atan2(pointA[1]-pointB[1], pointA[0]-pointB[0]))
+        if angle >=180:
+            angle = angle - 360
+    except TypeError:
+        angle = 0
     return abs(angle)
 
 # Calculate Feedback
@@ -267,21 +303,31 @@ def calculateFeedback(currentTechnique, historyCheck, pointsList, currentSport):
         #calculate the angle or distance for each area
         for FeedbackArea in provideFeedback:
             if FeedbackArea.type == "Distance":
-
-                userDistance = calcDistance(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]])
+                try:
+                    userDistance = calcDistance(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]])
+                except TypeError:
+                    userAngle=0
                 for x in referenceTechniques:
                     if x.technique == currentTechnique:
-                        refDistance = calcDistance(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]])
+                        try:
+                            refDistance = calcDistance(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]])
+                        except TypeError:
+                            refDistance = 0
                 #calculate the difference between the distance
                 provideFeedback[feedbackCount].differencesList.append(abs(userDistance-refDistance))
                 provideFeedback[feedbackCount].referenceList.append(refDistance)
                 print(userDistance, "-d", refDistance ,"=",userDistance-refDistance)
             elif FeedbackArea.type == "Angle":
-
-                userAngle = calcAngle(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]],(0,pointsList[framesCount][FeedbackArea.points[1]][1]))
+                try:
+                    userAngle = calcAngle(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]],(0,pointsList[framesCount][FeedbackArea.points[1]][1]))
+                except TypeError:
+                    userAngle=0
                 for x in referenceTechniques:
                     if x.technique == currentTechnique:
-                        refAngle = calcAngle(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]],(0,x.points[framesCount][FeedbackArea.points[1]][0]))
+                        try:
+                            refAngle = calcAngle(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]],(0,x.points[framesCount][FeedbackArea.points[1]][0]))
+                        except TypeError:
+                            refAngle = 0
                 #calculate the difference between the angle
                 provideFeedback[feedbackCount].differencesList.append(abs(userAngle-refAngle))
                 provideFeedback[feedbackCount].referenceList.append(refAngle)
@@ -291,7 +337,6 @@ def calculateFeedback(currentTechnique, historyCheck, pointsList, currentSport):
         framesCount+=1
 
     #boundary checks to see how well they compare against the reference
-    feedbackList = []
     differencesCount = 0
     #for each area in the differences
     for differences in provideFeedback:
@@ -336,29 +381,30 @@ def outputFeedback(differencesList):
     
 
     if(needImprovement!=[]):
-        print("Areas that need improvement:")
+        provideFeedback.append("Areas that need improvement:")
         for i in needImprovement:
-            print("Area of Tracking: ",i[0].area, ", Percentage Difference: ",i[1])
+            provideFeedback.append(("Area of Tracking: "+str(i[0].area) +", Percentage Difference: "+str(round(i[1],2))))
 
     if(poor!=[]):
-        print("Poor Areas:")
+        provideFeedback.append("Poor Areas:")
         for i in poor:
-            print("Area of Tracking: ",i[0].area, ", Percentage Difference: ",i[1])
+            provideFeedback.append(("Area of Tracking: "+str(i[0].area) +", Percentage Difference: "+str(round(i[1],2))))
 
     if(ok!=[]):
-        print("Ok Areas:")
+        provideFeedback.append("Ok Areas:")
         for i in ok:
-            print("Area of Tracking: ",i[0].area, ", Percentage Difference: ",i[1])
+            provideFeedback.append(("Area of Tracking: "+str(i[0].area) +", Percentage Difference: "+str(round(i[1],2))))
             
     if(good!=[]):
-        print("Good Areas:")
+        provideFeedback.append("Good Areas:")
         for i in good:
-            print("Area of Tracking: ",i[0].area, ", Percentage Difference: ",i[1])
+            provideFeedback.append(("Area of Tracking: "+str(i[0].area) +", Percentage Difference: "+str(round(i[1],2))))
 
     if(perfect!=[]):
-        print("Perfect Areas:")
+        provideFeedback.append("Perfect Areas:")
         for i in perfect:
-            print("Area of Tracking: ",i[0].area, ", Percentage Difference: ",i[1])
+            provideFeedback.append(("Area of Tracking: "+str(i[0].area) +", Percentage Difference: "+str(round(i[1],2))))
+    feedbackList.clear()
 
 # View History
 def viewHistory():
@@ -407,42 +453,39 @@ def viewHistory():
 def sendToHistory(currentTechnique):
     print("Do you wish to save the reference skeleton image and data for later use?")
     print("The image will be stored for later use. This can be deleted later")
-    decision = input("y/n?: ")
-    if decision == "y":
-        timeFile = (str(datetime.datetime.now())).replace(" ","_")
-        timeFile = timeFile.replace(":","_")
-        fname = "storedFeedback\\" + (currentTechnique.title()) + timeFile
-        try:
-            fpath = os.path.abspath(fname)
-            os.makedirs(fpath)
-        except FileExistsError:
-            fpath = os.path.abspath(fname)
-        
-        jsonPoints = {
-            "points": usersTechnique.points
-        }
-        jsx = json.dumps(jsonPoints)
-        with open(fpath+'\\pointsData.json', 'w') as file:
-            json.dump(jsx, file)
 
-        try:
-            fpath = os.path.abspath(fname)
-            fpath = fpath + "\\skeletonsList"
-            os.makedirs(fpath)
-        except FileExistsError:
-            fpath = os.path.abspath(fname)
-        count = 0
-        for skele in usersTechnique.skeleton:
-            cv2.imwrite(fpath+'\\skeleton_'+ str(count) +'.jpg', cv2.cvtColor(usersTechnique.skeleton[count], cv2.COLOR_RGB2BGR))
-            count+=1
-        print("Successfully written to folder " + fpath)
-        menu()
+    timeFile = (str(datetime.datetime.now())).replace(" ","_")
+    timeFile = timeFile.replace(":","_")
+    fname = "storedFeedback\\" + (currentTechnique.title()) + "-" + timeFile
+    try:
+        fpath = os.path.abspath(fname)
+        os.makedirs(fpath)
+    except FileExistsError:
+        fpath = os.path.abspath(fname)
+    
+    jsonPoints = {
+        "points": usersTechnique.points
+    }
+    jsx = json.dumps(jsonPoints)
+    with open(fpath+'\\pointsData.json', 'w') as file:
+        json.dump(jsx, file)
 
-    elif decision == "n":
-        menu()
-    else:
-        print("incorrect input please run again to store")
-        menu()
+    try:
+        fpath = os.path.abspath(fname)
+        fpath = fpath + "\\skeletonsList"
+        os.makedirs(fpath)
+    except FileExistsError:
+        fpath = os.path.abspath(fname)
+    count = 0
+    for skele in usersTechnique.skeleton:
+        # im = footageEncryption(cv2.cvtColor(usersTechnique.skeleton[count], cv2.COLOR_RGB2BGR))
+        # with open(fpath+'\\skeleton_'+ str(count) +'.jpg',"wb+") as image:
+        #     image.write(im)
+        cv2.imwrite(fpath+'\\skeleton_'+ str(count) +'.jpg', (cv2.cvtColor(usersTechnique.skeleton[count], cv2.COLOR_RGB2BGR)))
+        count+=1
+    # im = footageDecryption(fpath+'\\skeleton_'+ str(4) +'.jpg')
+    print("Successfully written to folder " + fpath)
+
 
 # Delete History
 def deleteHistory():
@@ -477,9 +520,9 @@ def footageEncryption(image):
     print("encryption tbd")
     with open(keyPath, 'rb') as keyFile:
         key = keyFile.read()
-    image = binascii.hexlify(image)
+    image = Image.fromarray(image)
     encryptKey = Fernet(key) 
-    byteImage = bytes(image)
+    byteImage = image.tobytes()
     encryptedImage = encryptKey.encrypt(byteImage)
 
     return encryptedImage
@@ -496,10 +539,12 @@ def footageDecryption(imagePath):
         encryptedImage = img.read()
         
     decryptedImage = decryptKey.decrypt(encryptedImage)
-    decryptedImage = binascii.unhexlify(decryptedImage)
+    decryptedImage = BytesIO(decryptedImage)
+    file_bytes = np.asarray(decryptedImage, dtype=np.uint8)
+    im = cv2.imdecode(file_bytes,cv2.IMREAD_COLOR)
     imagePath = imagePath.replace(".jpg","temp.jpg")
     with open(imagePath, 'w') as image:
-        image.write(decryptedImage)
+        image.write(im)
     im = cv2.imread(imagePath)
     return im
 
