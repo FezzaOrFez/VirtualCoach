@@ -31,7 +31,7 @@
 	        "area": "Head Angle",
 		    "type": "Angle",
 		    "messages": true,
- 	        "points": [0,1]
+ 	        "points": [0,1,5]
  	       }
 	    ]
 }

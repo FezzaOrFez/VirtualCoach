@@ -319,13 +319,20 @@ def calculateFeedback(currentTechnique, historyCheck, pointsList, currentSport):
                 print(userDistance, "-d", refDistance ,"=",userDistance-refDistance)
             elif FeedbackArea.type == "Angle":
                 try:
-                    userAngle = calcAngle(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]],(0,pointsList[framesCount][FeedbackArea.points[1]][1]))
+                    if len(FeedbackArea.points) < 3:
+                        userAngle = calcAngle(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]],(0,pointsList[framesCount][FeedbackArea.points[1]][1]))
+                    else:
+                        userAngle = calcAngle(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]], pointsList[framesCount][FeedbackArea.points[2]])
+
                 except TypeError:
                     userAngle=0
                 for x in referenceTechniques:
                     if x.technique == currentTechnique:
                         try:
-                            refAngle = calcAngle(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]],(0,x.points[framesCount][FeedbackArea.points[1]][0]))
+                            if len(FeedbackArea.points) < 2:
+                                refAngle = calcAngle(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]],(0,x.points[framesCount][FeedbackArea.points[1]][0]))
+                            else:
+                                refAngle = calcAngle(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]],x.points[framesCount][FeedbackArea.points[1]])
                         except TypeError:
                             refAngle = 0
                 #calculate the difference between the angle
