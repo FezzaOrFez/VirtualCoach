@@ -2,13 +2,11 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import threading
 import math
 import tkinter
 import time
 import datetime
 import json
-import binascii
 from io import BytesIO
 from shutil import rmtree
 from tkinter import filedialog
@@ -19,24 +17,31 @@ import HumanPoseEstimation
 import Reference
 import UserTechnique
 import feedbackArea
-import VirtualCoachGUI
 
+# List for holding current used ReferenceTechnique Object
 referenceTechniques = []
 
+# Current in-use Technique
 usersTechnique = UserTechnique.UserTechnique([],[],None)
+
+# List of pairs of feedbackArea objects and the average difference between userTechnique and ReferenceTechnique
 feedbackList = []
 
+# List of strings with the level of quality and the area with the percentage difference for output
 provideFeedback = []
-# 0=head,1=neck,2=left shoulder,3=left elbow,4=left hand,5=right shoulder,6=right elbow,7=right hand,8=left hip,9=left knee,10=left foot,11=right hip,12=right knee,13=right foot,14=centre
-pointKey=["HEAD","NECK","LEFTSHOULDER","LEFTELBOW","LEFTHAND","RIGHTSHOULDER","RIGHTELBOW","RIGHTHAND","LEFTHIP","LEFTKNEE","LEFTFOOT","RIGHTHIP","RIGHTKNEE","RIGHTFOOT","CENTRE"]
 
+# reference comment for which part of the human pose estimation array equals which body part
+# 0=head,1=neck,2=left shoulder,3=left elbow,4=left hand,5=right shoulder,6=right elbow,7=right hand,8=left hip,9=left knee,10=left foot,11=right hip,12=right knee,13=right foot,14=centre
+# pointKey=["HEAD","NECK","LEFTSHOULDER","LEFTELBOW","LEFTHAND","RIGHTSHOULDER","RIGHTELBOW","RIGHTHAND","LEFTHIP","LEFTKNEE","LEFTFOOT","RIGHTHIP","RIGHTKNEE","RIGHTFOOT","CENTRE"]
+
+# generates a unique encryption key for each download and adds to imageKey.key file
 imageKey = Fernet.generate_key()
 keyPath = (os.path.abspath('imageKey.key'))
 if os.path.exists(keyPath) == False:
     with open((keyPath), 'wb') as keyFile:
         keyFile.write(imageKey)
 
-# load reference images
+# function for loading the reference images for the chosen technique
 def loadImages(folderName):
     setOfImages = []
     for files in os.listdir("referenceTechniques\\"+folderName):
@@ -45,7 +50,7 @@ def loadImages(folderName):
             setOfImages.append(im)
     return setOfImages
 
-# preprocossing reference images for useage
+# preprocess the reference images for chosen technique
 def processRefImages(sport,exerciseName):
     processedImages = []
     fpath = "FeedbackAreas\\"+sport+"\\" + exerciseName + ".json"
@@ -53,322 +58,322 @@ def processRefImages(sport,exerciseName):
     with open(os.path.abspath(fpath)) as file:
         feedbackDict = json.load(file)
     setImages = loadImages(exerciseName)
+    # for each reference image
     for im in setImages:
+        # cv2 gets images in BGR colour and so requires conversion
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+        # crop to preprocessed size specified in the feedback areas json file
         im = im[feedbackDict["referenceCrop"][0]:feedbackDict["referenceCrop"][1],feedbackDict["referenceCrop"][2]:feedbackDict["referenceCrop"][3]]
         processedImages.append(im)
     referenceTechnique = None
+    # add to the referenceTechniques list
     referenceTechnique = Reference.Reference(exerciseName,processedImages,[],None)
     referenceTechniques.append(referenceTechnique)
     
     return referenceTechnique
 
-# Select Sport
-def selectSport():
-    fname = "FeedbackAreas"
-    sportList = os.listdir(os.path.abspath(fname))
-    print("Select Sport:")
-    count = 1
-    for sport in sportList:
-        print(str(count) + ": " + sport)
-        count+=1
-    print("0: Back")
-    try:
-        x = int(input())
-        if x == 0:
-            menu()
-        elif x >= 1:
-            return(sportList[x-1])
-        else:
-            print("error: incorrect input")
-    except ValueError:
-        print("Unusable value please try again")
-        menu()
-
-# Select Technique
-def selectTechnique(sport):
-    fname = "FeedbackAreas"
-    techniqueList = os.listdir(os.path.abspath(fname+"\\"+sport))
-    print("Select Technique:")
-    count = 1
-    for tech in techniqueList:
-        print(str(count) + ": " + tech.replace(".json",""))
-        count+=1
-    print("0: Go Back")
-    try:
-        x = int(input())
-        if x == 0:
-            menu()
-        elif x >= 1:
-            return(techniqueList[x-1].replace(".json",""))
-        else:
-            print("error: incorrect input")
-    except ValueError:
-        print("Unusable value please try again")
-        menu()
-       
-# Add Video
-def addUserVideo(technique,sport):
-    print("Select Video Input Method: 1 = Input Video from Files, 2 = Record Video, 3 = get technique information")
-    try:
-        x = int(input())
-        if x == 1:
-            inputVideo(technique)
-        elif x == 2:
-            recordVideo(technique)
-        elif x == 3:
-            fpath = "FeedbackAreas\\"+sport+"\\" + (technique.title()) + ".json"
-            feedbackDict = {}
-            with open(os.path.abspath(fpath)) as file:
-                feedbackDict = json.load(file)
-            print(feedbackDict["description"])
-            addUserVideo(technique,sport)
-
-    except ValueError:
-        print("Invalid Value")
-        menu()
-
-# Input Video
+# Allows a user to add their technique video from files
 def inputVideo(technique):
-    count = 0
-    videoName = print("Select Video")
+    count=0
+    # opens file explorer in tkinter window
     tkinter.Tk().withdraw()
     videoName = filedialog.askopenfilename()
+
+    #opens file in video capture object
     videoLink = cv2.VideoCapture(videoName)
-    numFrames = int(videoLink.get(cv2.CAP_PROP_FRAME_COUNT))
+    #check file is real/open
     if not videoLink.isOpened():
         print("Error: could not open video file")
     else:
+
+        # get total frames in file for own framerate
+        numFrames = int(videoLink.get(cv2.CAP_PROP_FRAME_COUNT))
+        # get the number of frames in referenceTechnique to check how many we need to split video by
         referShape = None
         for x in referenceTechniques:
                     if x.technique == technique:
                             referShape = x.frames[0]
+                            break
+
+        # loop through each frame in video link
         while videoLink.isOpened():
+            #read frame and ret(confirms readable frame)
             ret, frame = videoLink.read()
             if ret:
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                # shrinks or grows user's video to match height with reference video and proportionally change width
                 height, width, channels = referShape.shape
                 r = height / float(frame.shape[0])
                 dim = (int(frame.shape[1] * r),height)
                 frame = cv2.resize(frame, dim,interpolation=cv2.INTER_AREA)
+                # append frame to usersTechnique frame list
                 usersTechnique.frames.append(frame)
-                count+=numFrames/15
+                # skips frames to only have double the reference frames by end. Most videos are in the 100s of frames and human pose estimation
+                # on all of these frames is very slow. The number of frames are doubled to allow temporal analysis to syncronise the footages together
+                count+=int(numFrames/((len(x.frames))*2))
                 videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
             else:
                 break
     videoLink.release()
+
+# Crop the user's video
+# Temporal analysis was affected by any extra space that affected the proportions between videos
+# This uses human pose estimation to find the users highest head point and crops to just above this point
+def cropVideo(technique):
+    # get the shape of the reference image
+    referShape = None
+    for x in referenceTechniques:
+                if x.technique == technique:
+                        referShape = x.frames[0]
+
+    # add the middle, three quarters, and last frame of the users technique to a list
     quickList = []
     quickList.append(usersTechnique.frames[int(len(usersTechnique.frames)/2)])
-    quickList.append(usersTechnique.frames[int(len(usersTechnique.frames)/2)])
+    quickList.append(usersTechnique.frames[int((len(usersTechnique.frames)/4))])
+    quickList.append(usersTechnique.frames[int(len(usersTechnique.frames)-1)])
+    # send to pose estimation function to find head point
     pointsArray, HPEdImages = HumanPoseEstimation.poseEstImages(quickList)
+    # loop through to find highest point
+    highest = 100000
+    count = 0
+    highestHead = 0
+    for points in pointsArray:
+        if points[0][1] < highest:
+            highest = points[0][1]
+            highestHead = count
+        count += 1
+    
+    #crop all frames and change all length to reference length and width proportional to the length
     frameCropped = []
     height, width, channels = HPEdImages[0].shape
     for frame in usersTechnique.frames:
-        print((pointsArray[0][0]))
-        frameCropped.append(frame[int(pointsArray[0][0][0])-25:height,0:width])
-    plt.imshow(frameCropped[0])
-    plt.show()
+        cropped = frame[int(pointsArray[highestHead][0][1])-25:height,0:width]
+        h, w, channels = referShape.shape
+        r = h / float(cropped.shape[0])
+        dim = (int(cropped.shape[1] * r),h)
+        frame = cv2.resize(cropped, dim,interpolation=cv2.INTER_AREA)
+        # append to list
+        frameCropped.append(frame)
     usersTechnique.frames = frameCropped
     
 
-# Record Video
+# Allows the user to record video to be used in coaching
 def recordVideo(technique,countdown,timing):
-
+    #start countdown from user set number
     countdown = int(countdown)
     timing = int(timing)
     for i in range(countdown):
         time.sleep(1)
         print(countdown - i)
 
+    #set camera capture
     cap = cv2.VideoCapture(0)
-
+    #check camera is usable
     if not cap.isOpened():
         print("Cannot open camera")
         exit()
     
+    #create file for video to be saved to
     recVideo = cv2.VideoWriter("userRecordedVideo.avi", cv2.VideoWriter_fourcc("M", "J", "P", "G"), 10, (int(cap.get(3)), int(cap.get(4))))
 
+    #set length of recording time
     timingSet = time.time() + int(timing)
 
+    # capture each frame for x time
     while time.time() < timingSet:
-        # Capture frame-by-frame
+        # read frame and check if frame is read
         ret, frame = cap.read()
-    
-        # if frame is read correctly ret is True
         if not ret:
             print("Can't receive frame (stream end?). Exiting ...")
             break
-        # Our operations on the frame come here
-        # Display the resulting frame
+        
+        #show frame to user
         cv2.imshow("frame",frame)
+        #write to file
         recVideo.write(frame)
+        #option to stop early
         if cv2.waitKey(1) == ord('q'):
             break
     
-    # When everything done, release the capture
+    # release capture, window and video file after time limit
     cap.release()
     cv2.destroyAllWindows()
-    numFrames = int(recVideo.get(cv2.CAP_PROP_FRAME_COUNT))
     recVideo.release()
-    count = 0
+
+    #open video file
     videoLink = cv2.VideoCapture("userRecordedVideo.avi")
-    numFrames = int(videoLink.get(cv2.CAP_PROP_FRAME_COUNT))
+    #check file is open
     if not videoLink.isOpened():
         print("Error: could not open video file")
     else:
         while videoLink.isOpened():
+            # read each frame and check readable
             ret, frame = videoLink.read()
             if ret:
+                #get reference frame shape
                 for x in referenceTechniques:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                     if x.technique == technique:
                         referShape = x.frames[0]
-                    height, width, channels = referShape.shape
-                    r = height / float(frame.shape[0])
-                    dim = (int(frame.shape[1] * r),height)
-                    frame = cv2.resize(frame, dim,interpolation=cv2.INTER_AREA)
-                    usersTechnique.frames.append(frame)
-                    # count+=numFrames/7
-                    # videoLink.set(cv2.CAP_PROP_POS_FRAMES, count)
+                # change each frame to correct colour pattern and crop proportionally to reference length
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                height, width, channels = referShape.shape
+                r = height / float(frame.shape[0])
+                dim = (int(frame.shape[1] * r),height)
+                frame = cv2.resize(frame, dim,interpolation=cv2.INTER_AREA)
+                usersTechnique.frames.append(frame)    
             else:
                 break
         videoLink.release()
+        #remove video for security
         os.remove("userRecordedVideo.avi")
         
-
+# Function to match reference frames to their closest points in the user technique
+# reduces number to equal to reference frames amount
 def temporalAnalysis(technique):
     frameClosest = []
     pointsClosest = []
+
+    # find used technique in reference
     for x in referenceTechniques:
         if x.technique == technique:
+            #get each frame in reference points
             for frame in x.points:
                 closest = 100000
                 frameref = 0
                 currentClosest = 0
+                # for each user technique frame to find which has the closest head points
                 for fr in usersTechnique.points:
-                    if fr[14] != None and frame[14]!= None:
+                    if fr[0] != None and frame[0]!= None:
                         dis = calcDistance(fr[0],frame[0])
                         if dis < closest:
                             closest = dis
                             currentClosest = frameref
                     frameref+=1
-                print(frameref)
+                # add to closest point and frame
                 pointsClosest.append(usersTechnique.points[currentClosest])
                 frameClosest.append(usersTechnique.skeleton[currentClosest])
+    # set final closest frames to skeleton and points array
     usersTechnique.skeleton = frameClosest
     usersTechnique.points = pointsClosest
 
 # Calculate Distance
 def calcDistance(pointA, pointB):
     try:
+        # distance = square root (b1 - a1)^2 + (b2 - a2)^2
         distance = math.sqrt(((pointB[0] - pointA[0])**2) + ((pointB[1] - pointA[1])**2))
     except TypeError:
+        # if human pose estimation cant find point it returns none for that coordinate, and so cannot be used in calculations
         distance = 0
     return distance
 
 # Calculate Angle
 def calcAngle(pointA, pointB, pointC):
     try:
+        #angle = convert to degrees (instead of radians): arctan(c2-b2, c1-b1) - arctan(a2-b2,a1-b1)
         angle = math.degrees(math.atan2(pointC[1]-pointB[1], pointC[0]-pointB[0]) - math.atan2(pointA[1]-pointB[1], pointA[0]-pointB[0]))
+        #convert to acute angle
         if angle >=180:
             angle = angle - 360
     except TypeError:
+        # if human pose estimation cant find point it returns none for that coordinate, and so cannot be used in calculations
         angle = 0
     return abs(angle)
 
-# Calculate Feedback
-def calculateFeedback(currentTechnique, historyCheck, pointsList, currentSport):
-    #for now compare deadlift and user technique
-    print("Generating Feedback")
+# Calculate Feedback from human pose estimation
+def calculateFeedback(currentTechnique, pointsList, currentSport):
+    #set feedback to none
     provideFeedback = []
 
+    # hpe point reference guide
     # 0=head,1=neck,2=left shoulder,3=left elbow,4=left hand,5=right shoulder,6=right elbow,7=right hand,8=left hip,9=left knee,10=left foot,11=right hip,12=right knee,13=right foot,14=centre
-    #deadlift
-    #where could mistakes be made in technique
-    # legs distance, angle of back, leg and hip distance, arms distance
+
+    # get techique json file
+    # technique json file contains the information on the technique and sport as well as an array of each tracking area for feedback with a name, type(angle or distance) and the points (refer to guide)
     fpath = "FeedbackAreas\\"+currentSport+"\\" + (currentTechnique.title()) + ".json"
     feedbackDict = {}
+    # add to dictionary
     with open(os.path.abspath(fpath)) as file:
         feedbackDict = json.load(file)
+    # convert each area to Feedback object and apend to list
     for area in feedbackDict["areas"]:
         provideFeedback.append(feedbackArea.Feedback(area['area'],area['points'],area['type'],[],[],[]))
 
-
     feedbackCount = 0
     framesCount = 0
-    #compare the videos in these areas
-    #check each frame
+    # generate feedback
+    # go through each frame in reference and user technique
     for x in pointsList:
         feedbackCount = 0
-        #calculate the angle or distance for each area
+        # for each feedback area in the technique dictionary
         for FeedbackArea in provideFeedback:
+            # if the type of area is distance calculate the distance
             if FeedbackArea.type == "Distance":
                 try:
+                    #calculate the users distance between two points
                     userDistance = calcDistance(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]])
                 except TypeError:
                     userAngle=0
+                #find referenceTechnique
                 for x in referenceTechniques:
                     if x.technique == currentTechnique:
                         try:
+                            #calculate the reference distance between two points
                             refDistance = calcDistance(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]])
                         except TypeError:
+                            # if human pose estimation cant find point it returns none for that coordinate, and so cannot be used in calculations
                             refDistance = 0
-                #calculate the difference between the distance
+                # append the difference between the two points as well as the reference distance for percentage
                 provideFeedback[feedbackCount].differencesList.append(abs(userDistance-refDistance))
                 provideFeedback[feedbackCount].referenceList.append(refDistance)
-                print(userDistance, "-d", refDistance ,"=",userDistance-refDistance)
+                
+            #if feedback area type is angle
             elif FeedbackArea.type == "Angle":
                 try:
+                    # if the provided area has 3 hpe points calculate the angle between the three for user
                     if len(FeedbackArea.points) < 3:
                         userAngle = calcAngle(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]],(0,pointsList[framesCount][FeedbackArea.points[1]][1]))
                     else:
+                        # if not calculate the angle difference between the two points and a point on the same x axis as the middle point
                         userAngle = calcAngle(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]], pointsList[framesCount][FeedbackArea.points[2]])
 
                 except TypeError:
+                    # if human pose estimation cant find point it returns none for that coordinate, and so cannot be used in calculations
                     userAngle=0
+                #find reference technique
                 for x in referenceTechniques:
                     if x.technique == currentTechnique:
                         try:
+                            # if the provided area has 3 hpe points calculate the angle between the three for user
                             if len(FeedbackArea.points) < 2:
                                 refAngle = calcAngle(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]],(0,x.points[framesCount][FeedbackArea.points[1]][0]))
                             else:
+                                # if not calculate the angle difference between the two points and a point on the same x axis as the middle point
                                 refAngle = calcAngle(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]],x.points[framesCount][FeedbackArea.points[1]])
                         except TypeError:
+                            # if human pose estimation cant find point it returns none for that coordinate, and so cannot be used in calculations
                             refAngle = 0
-                #calculate the difference between the angle
+                #calculate the difference between the angle and append it and the reference angle
                 provideFeedback[feedbackCount].differencesList.append(abs(userAngle-refAngle))
                 provideFeedback[feedbackCount].referenceList.append(refAngle)
-                print(userAngle, "-a", refAngle ,"=",userAngle-refAngle)
-
             feedbackCount +=1
         framesCount+=1
 
-    #boundary checks to see how well they compare against the reference
     differencesCount = 0
     #for each area in the differences
     for differences in provideFeedback:
-        #average difference of all frames
+        # calculate the average differences of each frame for differences and references
         difference = sum(provideFeedback[differencesCount].differencesList) / len(provideFeedback[differencesCount].differencesList)
         refAve = sum(provideFeedback[differencesCount].referenceList) / len(provideFeedback[differencesCount].referenceList)
+        #convert to percentage difference
         percentDifference = difference/refAve
         percentDifference = percentDifference * 100
+        # append the area object and percentage diff
         feedbackList.append((differences, percentDifference))
         differencesCount+=1
 
-    print(feedbackList)
-
-    #return areas for ouputting feedback
-    # outputFeedback(feedbackList)
-    # if(historyCheck == False):
-    #     sendToHistory(currentTechnique)
-    # else:
-    #     menu()
-
-# Output Feedback
+# Calcualte the feedback boundary and add to a list
 def outputFeedback(differencesList):
-    print("output feedback tbd")
-    #priority - add to lists dependant on boundary output worst first to best last
-    # 6,10,15,20,+
+    # add differences to different lists depending on percentage boundaries
     perfect = []
     good = []
     ok = []
@@ -386,7 +391,7 @@ def outputFeedback(differencesList):
         else:
             needImprovement.append(areaOfImpro)
     
-
+    # append each string for providing feedback to user. Ordered in terms of priority from worst to best
     if(needImprovement!=[]):
         provideFeedback.append("Areas that need improvement:")
         for i in needImprovement:
@@ -413,77 +418,42 @@ def outputFeedback(differencesList):
             provideFeedback.append(("Area of Tracking: "+str(i[0].area) +", Percentage Difference: "+str(round(i[1],2))))
     feedbackList.clear()
 
-# View History
-def viewHistory():
-    print("view history tbd")
-    fname = "storedFeedback"
-    historyList = os.listdir(os.path.abspath(fname))
-    count = 0
-    for i in historyList:
-        print(str(count+1)+": "+i)
-    print("0: Back")
-    print("99: For delete")
-    print("")
-    try:
-        whichHist = int(input("Please input the number the wish to view: "))
-
-        if whichHist <= len(historyList) and whichHist > 0:
-
-            fpath = fname + "\\" + historyList[int(whichHist)-1] + "\\pointsData.json"
-
-            with open(os.path.abspath(fpath)) as file:
-                feedbackDict = json.loads(json.load(file))
-
-            fpath = fname + "\\" + historyList[int(whichHist)-1] + "\\skeletonsList"
-            skelList = os.listdir(os.path.abspath(fpath))
-
-            inim = 1
-            for x in skelList:
-                skelImg = cv2.imread(os.path.abspath(fpath+ "\\" + x), 1)
-                plt.subplot(4,3,inim)
-                plt.axis("off")
-                skelImg = cv2.cvtColor(skelImg, cv2.COLOR_RGB2BGR)
-                plt.imshow(skelImg)
-                inim+=1
-            plt.show()
-
-            calculateFeedback("Deadlift",True,feedbackDict["points"], "Powerlifting")
-        elif whichHist == 0:
-            menu()
-        elif whichHist == 99:
-            deleteHistory()
-    except ValueError:
-        print("Invalid Value")
-        viewHistory()
-
 # Add to history
 def sendToHistory(currentTechnique):
-    print("Do you wish to save the reference skeleton image and data for later use?")
-    print("The image will be stored for later use. This can be deleted later")
-
+    # store the current date time to prevent exact file names
     timeFile = (str(datetime.datetime.now())).replace(" ","_")
+    # replace unusable characters in time
     timeFile = timeFile.replace(":","_")
     fname = "storedFeedback\\" + (currentTechnique.title()) + "-" + timeFile
     try:
+        # get absolute path of intended folder
         fpath = os.path.abspath(fname)
+        # create path
         os.makedirs(fpath)
     except FileExistsError:
+        # if file does exist just get absolute path of folder
         fpath = os.path.abspath(fname)
     
+    # create dictionary of just points
     jsonPoints = {
         "points": usersTechnique.points
     }
+    # serialize points into a json object
     jsx = json.dumps(jsonPoints)
+    # dump into json file
     with open(fpath+'\\pointsData.json', 'w') as file:
         json.dump(jsx, file)
 
     try:
+        # make directory in folder for skeleton images
         fpath = os.path.abspath(fname)
         fpath = fpath + "\\skeletonsList"
         os.makedirs(fpath)
     except FileExistsError:
+        # if file exists just create an absolute path
         fpath = os.path.abspath(fname)
     count = 0
+    # write skeleton image to folder
     for skele in usersTechnique.skeleton:
         # im = footageEncryption(cv2.cvtColor(usersTechnique.skeleton[count], cv2.COLOR_RGB2BGR))
         # with open(fpath+'\\skeleton_'+ str(count) +'.jpg',"wb+") as image:
@@ -491,36 +461,6 @@ def sendToHistory(currentTechnique):
         cv2.imwrite(fpath+'\\skeleton_'+ str(count) +'.jpg', (cv2.cvtColor(usersTechnique.skeleton[count], cv2.COLOR_RGB2BGR)))
         count+=1
     # im = footageDecryption(fpath+'\\skeleton_'+ str(4) +'.jpg')
-    print("Successfully written to folder " + fpath)
-
-
-# Delete History
-def deleteHistory():
-    print("delete history tbd")
-    fname = "storedFeedback"
-    historyList = os.listdir(os.path.abspath(fname))
-    count = 0
-    for i in historyList:
-        print(str(count+1)+": "+i)
-    print("0: Back")
-    print("")
-    try:
-        whichHist = int(input("Please input the number to delete: "))
-
-        if whichHist <= len(historyList) and whichHist > 0:
-            fpath = fname + "\\" + historyList[int(whichHist)-1]
-            rmtree(fpath)
-            print("Successfully deleted")
-            menu()
-        elif whichHist == 0:
-            menu()
-        else: 
-            print("incorrect input")
-            viewHistory()
-    except ValueError:
-        print("Invalid Value")
-        menu()
-
 
 # Encryption
 def footageEncryption(image):
@@ -555,56 +495,16 @@ def footageDecryption(imagePath):
     im = cv2.imread(imagePath)
     return im
 
-# Manage Techniques
-def manageTechniques():
-    # show sports and their techniques
-    print("tbd")
-    # select sport
-
-        # add technique
-
-        # delete sport
-
-    # or add sport
-
-
-def menu():
-    print("Choose option")
-    print("1: Track Technique")
-    print("2: Track History")
-    print("3: Manage Tecnhiques")
-    try:
-        x = int(input())
-        if(x == 1):
-            chosenSport = selectSport()
-            chosenTechnique = selectTechnique(chosenSport)
-            addUserVideo(chosenTechnique,chosenSport)
-            #conduct hpe on added video
-
-            pointsArray, HPEdImages = HumanPoseEstimation.poseEstImages(usersTechnique.frames)
-            usersTechnique.skeleton = HPEdImages
-            usersTechnique.points = pointsArray
-            #calculate feedback
-            calculateFeedback(chosenTechnique,False,usersTechnique.points,chosenSport)
-        elif(x == 2):
-            viewHistory()
-        elif(x == 3):
-            manageTechniques()
-        else:
-            print("Invalid option")
-    except ValueError:
-        print("invalid input")
-
-#main function for easability
-def main():
-    #start processing reference images
-    refImages = processRefImages("Powerlifting","Deadlift")
-    #conduct hpe on reference videos
+#startup function for getting the chosen technique
+def startUp(sport,technique):
+    # get and process the reference images for user's chosen technique
+    refImages = processRefImages(sport,technique)
+    # conduct hpe on reference videos
     pointsArray, HPEdImages = HumanPoseEstimation.poseEstImages(refImages.frames)
+    # add points and skeleton images to reference Technique object
     for x in referenceTechniques:
-        if x.technique == "Deadlift":
+        if x.technique == technique:
             x.skeleton = HPEdImages
             x.points = pointsArray
-    #thread to start adding user video
     
 
