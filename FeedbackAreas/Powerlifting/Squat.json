@@ -1,30 +1,26 @@
 {
 	"referenceCrop" : [0,359,240,450],
 	"description" : "Place the barbell on your shoulders and step away from the rack. Place your feet shoulder width apart. Lower your bum down and bend your legs. Once your hips are level with your legs. Push back up extending your legs and rerack the weight once finished.",
-	"sportdescription" : "Powerlifting is a sport",
+	"sportdescription" : "Powerlifting is a competitive strength sport that consists of three attempts at maximal weight on three lifts:\nsquat, bench press, and deadlift. As in the sport of Olympic weightlifting, it involves the athlete attempting a maximal weight single-lift effort of a barbell loaded with weight plates. Powerlifting evolved from a sport known as 'odd lifts', which followed the same three-attempt format but used a wider variety of events, akin to strongman competition. Eventually, odd lifts became standardized to the current three.",
 	"areas": [
 	       {
 		    "area": "Legs Distance",
 		    "type": "Distance",
-		    "messages": true,
            	"points": [14,10]
  	       },
 	       {
 	        "area": "Leg Angle",
 		    "type": "Angle",
-		    "messages": true,
  	        "points": [8,9,10]
  	       },
 		   {
 	        "area": "Back Angle",
 		    "type": "Angle",
-		    "messages": true,
  	        "points": [1,14,8]
  	       },
 		   {
 	        "area": "Head Angle",
 		    "type": "Angle",
-		    "messages": true,
  	        "points": [0,1]
  	       }
 	    ]

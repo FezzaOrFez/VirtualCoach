@@ -1,36 +1,31 @@
 {
 	"referenceCrop" : [0,400,175,500],
 	"description" : "Place your feet shoulder width apart underneath the barbell. Bend your knees down and keep your back straight and grab the barbell on the outside of your legs. Then pull the bar up and extend your legs until your body is fully extended. Keep the barbell against your knees the whole time. Then bend your legs and keep your back straight and place the barbell down.",
-	"sportdescription" : "Powerlifting is a sport",
+	"sportdescription" : "Powerlifting is a competitive strength sport that consists of three attempts at maximal weight on three lifts:\nsquat, bench press, and deadlift. As in the sport of Olympic weightlifting, it involves the athlete attempting a maximal weight single-lift effort of a barbell loaded with weight plates. Powerlifting evolved from a sport known as 'odd lifts', which followed the same three-attempt format but used a wider variety of events, akin to strongman competition. Eventually, odd lifts became standardized to the current three.",
 	"areas": [
 	       {
 		    "area": "Legs Distance",
 		    "type": "Distance",
-		    "messages": true,
            	"points": [10,13]
  	       },
 	       {
 	        "area": "Back Angle",
 		    "type": "Angle",
-		    "messages": true,
  	        "points": [1,14]
  	       },
 		   {
 	        "area": "Knee Distance",
 		    "type": "Distance",
-		    "messages": true,
  	        "points": [9,12]
  	       },
 		   {
 	        "area": "Hand Distance",
 		    "type": "Distance",
-		    "messages": true,
  	        "points": [4,7]
  	       },
 		   {
 	        "area": "Head Angle",
 		    "type": "Angle",
-		    "messages": true,
  	        "points": [0,1,5]
  	       }
 	    ]

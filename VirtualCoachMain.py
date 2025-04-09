@@ -63,7 +63,10 @@ def processRefImages(sport,exerciseName):
         # cv2 gets images in BGR colour and so requires conversion
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
         # crop to preprocessed size specified in the feedback areas json file
-        im = im[feedbackDict["referenceCrop"][0]:feedbackDict["referenceCrop"][1],feedbackDict["referenceCrop"][2]:feedbackDict["referenceCrop"][3]]
+        try:
+            im = im[feedbackDict["referenceCrop"][0]:feedbackDict["referenceCrop"][1],feedbackDict["referenceCrop"][2]:feedbackDict["referenceCrop"][3]]
+        except:
+            im = im
         processedImages.append(im)
     referenceTechnique = None
     # add to the referenceTechniques list
@@ -455,44 +458,52 @@ def sendToHistory(currentTechnique):
     count = 0
     # write skeleton image to folder
     for skele in usersTechnique.skeleton:
-        # im = footageEncryption(cv2.cvtColor(usersTechnique.skeleton[count], cv2.COLOR_RGB2BGR))
-        # with open(fpath+'\\skeleton_'+ str(count) +'.jpg',"wb+") as image:
-        #     image.write(im)
-        cv2.imwrite(fpath+'\\skeleton_'+ str(count) +'.jpg', (cv2.cvtColor(usersTechnique.skeleton[count], cv2.COLOR_RGB2BGR)))
+        imagePath = fpath+'\\skeleton_'+ str(count) +'.jpg'
+        # send file for encryption
+        im = footageEncryption(cv2.cvtColor(usersTechnique.skeleton[count], cv2.COLOR_RGB2BGR),imagePath)
         count+=1
-    # im = footageDecryption(fpath+'\\skeleton_'+ str(4) +'.jpg')
 
-# Encryption
-def footageEncryption(image):
-    print("encryption tbd")
+# encryption file for security and Data Protection Act 2018 coverage
+def footageEncryption(im,imPath):
+    # read the key file
     with open(keyPath, 'rb') as keyFile:
         key = keyFile.read()
-    image = Image.fromarray(image)
-    encryptKey = Fernet(key) 
-    byteImage = image.tobytes()
-    encryptedImage = encryptKey.encrypt(byteImage)
+    # change to key object
+    fernetEncryptionKey = Fernet(key)
+    # write file to filepath temporarily to change to normal image
+    cv2.imwrite(imPath, im)
+    # read written file
+    with open(imPath, 'rb') as image:
+        originalImage = image.read()
+    # delete file for security
+    os.remove(os.path.abspath(imPath))
+    # encrypt file
+    encryptedImage = fernetEncryptionKey.encrypt(originalImage)
+    # write to folder
+    with open(imPath, 'wb+') as image:
+        image.write(encryptedImage)
 
     return encryptedImage
 
-# Decryption
+# Decryption function for history
 def footageDecryption(imagePath):
-    print("decryption tbd")
+    # open key file
     with open(keyPath, 'rb') as keyFile:
         imageKeyFile = keyFile.read()
-        
-    decryptKey = Fernet(imageKeyFile)
-
-    with open(imagePath, 'r') as img:
-        encryptedImage = img.read()
-        
-    decryptedImage = decryptKey.decrypt(encryptedImage)
-    decryptedImage = BytesIO(decryptedImage)
-    file_bytes = np.asarray(decryptedImage, dtype=np.uint8)
-    im = cv2.imdecode(file_bytes,cv2.IMREAD_COLOR)
+    # change to key object
+    fernetDecryptionKey = Fernet(imageKeyFile)
+    # open encrypted image
+    with open(imagePath, 'rb') as image:
+        encryptedImage = image.read()
+    # decrypt file
+    decryptedImage = fernetDecryptionKey.decrypt(encryptedImage)
+    # write to file temporarily for opencv library reading
     imagePath = imagePath.replace(".jpg","temp.jpg")
-    with open(imagePath, 'w') as image:
-        image.write(im)
+    with open(imagePath, 'wb+') as image:
+        image.write(decryptedImage)
     im = cv2.imread(imagePath)
+    # delete temporarily file
+    os.remove(os.path.abspath(imagePath))
     return im
 
 #startup function for getting the chosen technique

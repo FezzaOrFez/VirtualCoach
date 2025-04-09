@@ -93,29 +93,6 @@ class App(tk.Tk):
                     self.refresh(afterWindow,container,"",False)
                 else:
                     # history feedback
-                    # reference videos are prepared
-                    VirtualCoachMain.startUp()
-                    #points and skeletons are fetched from file
-                    fname = "storedFeedback"
-                    fpath = fname + "\\" + self.historyFile.get() + "\\pointsData.json"
-                    with open(os.path.abspath(fpath)) as file:
-                        feedbackDict = json.loads(json.load(file))
-
-                    fpath = fname + "\\" + self.historyFile.get() + "\\skeletonsList"
-                    skelList = os.listdir(os.path.abspath(fpath))
-                    skelIMGList = []
-                    inim = 1
-                    # read and change the skeletons for use with feedback
-                    for x in skelList:
-                        skelImg = cv2.imread(os.path.abspath(fpath+ "\\" + x), 1)
-                        plt.subplot(4,3,inim)
-                        plt.axis("off")
-                        skelImg = cv2.cvtColor(skelImg, cv2.COLOR_RGB2BGR)
-                        inim+=1
-                        skelIMGList.append(skelImg)
-
-                    VirtualCoachMain.usersTechnique.skeleton = skelIMGList
-                    VirtualCoachMain.usersTechnique.points = feedbackDict["points"]
                     # perpare program for feedback
                     techRecieve = self.historyFile.get()
                     techRecieve = techRecieve.split('-')
@@ -130,6 +107,28 @@ class App(tk.Tk):
                             chosenSport = sport
 
                     self.sport.set(sport)
+                    # reference videos are prepared
+                    VirtualCoachMain.startUp(self.sport.get(),self.technique.get())
+                    #points and skeletons are fetched from file
+                    fname = "storedFeedback"
+                    fpath = fname + "\\" + self.historyFile.get() + "\\pointsData.json"
+                    with open(os.path.abspath(fpath)) as file:
+                        feedbackDict = json.loads(json.load(file))
+
+                    fpath = fname + "\\" + self.historyFile.get() + "\\skeletonsList"
+                    skelList = os.listdir(os.path.abspath(fpath))
+                    skelIMGList = []
+                    inim = 1
+                    # read and change the skeletons for use with feedback
+                    for x in skelList:
+                        
+                        skelImg = VirtualCoachMain.footageDecryption(os.path.abspath(fpath+"\\"+x))
+                        skelImg = cv2.cvtColor(skelImg, cv2.COLOR_RGB2BGR)
+                        inim+=1
+                        skelIMGList.append(skelImg)
+
+                    VirtualCoachMain.usersTechnique.skeleton = skelIMGList
+                    VirtualCoachMain.usersTechnique.points = feedbackDict["points"]
                     # calculate feedback on stored points
                     VirtualCoachMain.calculateFeedback(technique,VirtualCoachMain.usersTechnique.points,chosenSport)
                     # refresh calc feedback window
@@ -142,20 +141,23 @@ class MenuGUI(tk.Frame):
         tk.Frame.__init__(self, parent,width=850,height=500)
         self.pack_propagate(0)
         self.controller = controller
-        label = tk.Label(self, text="Virtual Coach", font=controller.title_font)
-        label.pack(side="top", fill="x", pady=10)
+        menuFont = tkfont.Font(family='Helvetica', size=24, weight="bold")
+        label = tk.Label(self, text="Virtual Coach", font=menuFont)
+        label.pack(side="top", fill="x", pady=80)
         # button for adding video and providing feedback
-        button1 = tk.Button(self, text="Track Technique",
+        btnWidth = 20
+        btnHeight = 2
+        button1 = tk.Button(self, text="Track Technique",width=btnWidth,height=btnHeight,
                             command=lambda: controller.show_frame("chooseSportGUI"))
         #button for getting history
-        button2 = tk.Button(self, text="Track History",
+        button2 = tk.Button(self, text="Track History",width=btnWidth,height=btnHeight,
                             command=lambda: controller.refresh("historyGUI",parent,"",False))
         #quit button to stop program
-        button3 = tk.Button(self, text="Quit",
+        button3 = tk.Button(self, text="Quit",width=btnWidth,height=btnHeight,
                             command=QuitApp)
-        button1.pack()
-        button2.pack()
-        button3.pack()
+        button1.pack(pady=10)
+        button2.pack(pady=10)
+        button3.pack(pady=10)
 
 # frame to show loading screen
 class Loading(tk.Frame):
@@ -174,20 +176,29 @@ class chooseSportGUI(tk.Frame):
         tk.Frame.__init__(self, parent)
         self.controller = controller
         self.frame = None
+        self.grid(sticky="new")
+        self.columnconfigure(0,weight=1)
+        self.columnconfigure(1,weight=1)
+        self.columnconfigure(2,weight=1)
+        self.rowconfigure(0,weight=0)
+        label = tk.Label(self, text="", font=controller.title_font)
+        label.grid(row=0,column=0,padx=20)
         label = tk.Label(self, text="Choose Sport", font=controller.title_font)
-        label.pack(side="top", fill="x", pady=10)
+        label.grid(row=0,column=1,pady=20)
         # sports recieved from feedback areas folder
         fname = "FeedbackAreas"
         sportList = os.listdir(os.path.abspath(fname))
         # create a button for each sport to allow user to choose
+        rowNum = 1
         for sport in sportList:
-            button = tk.Button(self, text=sport,
-                            command=partial(self.partialButton,sport,controller,parent))
-            button.pack()
+            self.rowconfigure(rowNum,weight=0)
+            button = tk.Button(self, text=sport,height=2,width=20,
+                            command=partial(self.partialButton,sport,controller,parent)).grid(row=rowNum,column=1,pady=10)
+            rowNum+=1
         # back button to menu
+        self.rowconfigure(rowNum,weight=1)
         backButton = tk.Button(self, text="Back",
-                                command=lambda:controller.show_frame("MenuGUI"))
-        backButton.pack(anchor="se")
+                                command=lambda:controller.show_frame("MenuGUI")).grid(row=rowNum,column=2,sticky="se",padx=5,pady=5)
     
     # sets the sport variable to whichever one the user chose
     def changeSport(self, sp):
@@ -204,23 +215,32 @@ class chooseTechniqueGUI(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
         self.controller = controller
+        self.grid(sticky="new")
+        self.columnconfigure(0,weight=1)
+        self.columnconfigure(1,weight=1)
+        self.columnconfigure(2,weight=1)
+        self.rowconfigure(0,weight=0)
+        label = tk.Label(self, text="", font=controller.title_font)
+        label.grid(row=0,column=0,padx=20)
         label = tk.Label(self, textvariable=controller.sport, font=controller.title_font)
-        label.pack(side="top", fill="x", pady=10)
+        label.grid(row=0,column=1,pady=20)
         fname = "FeedbackAreas"
+        rowNum=1
         try:
             # get technique from chosen sport folder
             techniqueList = (os.listdir(os.path.abspath(fname+"\\" + str(label["text"]))))
             for technique in techniqueList:
+                self.rowconfigure(rowNum,weight=0)
                 # techniques stored as json files and added as strings of file names
                 technique=technique.replace(".json","")
                 # add button of technique for user to select
-                button = tk.Button(self, text=technique,
-                                command=partial(self.setButton,technique,controller,parent))
-                button.pack()
+                button = tk.Button(self, text=technique,height=2,width=20,
+                                command=partial(self.setButton,technique,controller,parent)).grid(row=rowNum,column=1,pady=10)
+                rowNum+=1
             # back button to go to choose sport
+            self.rowconfigure(rowNum,weight=1)
             backButton = tk.Button(self, text="Back",
-                                command=lambda:controller.show_frame("chooseSportGUI"))
-            backButton.pack(anchor="se")
+                                command=lambda:controller.show_frame("chooseSportGUI")).grid(row=rowNum,column=2,sticky="se",padx=5,pady=5)
         except FileNotFoundError:
             print("")
     # set technique to chosen technique on button press
@@ -237,31 +257,31 @@ class chooseVideoInput(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
         self.controller = controller
-        label = tk.Label(self, text="Choose method of Video input for", font=controller.title_font)
-        label.pack(side="top", fill="x", pady=10)
+        self.grid(sticky="new")
+        self.columnconfigure((0,1,2),weight=1)
+        self.rowconfigure((0,1,2,3,4,5,6),weight=1)
+        label = tk.Label(self, text="", font=controller.title_font)
+        label.grid(row=0,column=0,padx=20)
+        label = tk.Label(self, text="Choose method of video input for", font=controller.title_font)
+        label.grid(row=0,column=1)
         label2 = tk.Label(self, textvariable=controller.technique, font=controller.title_font)
-        label2.pack(side="top", fill="x", pady=10)
+        label2.grid(row=1,column=1)
         # input from file explorer
-        fileButton = tk.Button(self, text="File Input",
-                                command=partial(self.getVideo,label2,controller,parent))
+        fileButton = tk.Button(self, text="File Input",height=2,width=20,
+                                command=partial(self.getVideo,label2,controller,parent)).grid(row=4,column=1,pady=10)
         # go to record video frame
-        recordButton = tk.Button(self, text="Record Input",
-                                command=lambda:controller.show_frame("recordInput"))
+        recordButton = tk.Button(self, text="Record Input",height=2,width=20,
+                                command=lambda:controller.show_frame("recordInput")).grid(row=5,column=1,pady=10)
         
         # provide description of technique
         descButton = tk.Button(self, text="Technique Description",
-                                command=partial(self.outputDescription))
+                                command=partial(self.outputDescription)).grid(row=2,column=1,pady=1)
         # provide description of sport
         sportButton = tk.Button(self, text="Sport Description",
-                                command=partial(self.outputSport))
-        sportButton.pack()
-        descButton.pack()
-        fileButton.pack()
-        recordButton.pack()
+                                command=partial(self.outputSport)).grid(row=3,column=1,pady=1)
         # go back to choose technique
         backButton = tk.Button(self, text="Back",
-                                command=lambda:self.backReset())
-        backButton.pack(anchor="se")
+                                command=lambda:self.backReset()).grid(row=6,column=2,padx=5,pady=5,sticky="se")
 
     # resets generated reference frames and goes back to choose technique
     def backReset(self):
@@ -289,16 +309,19 @@ class chooseVideoInput(tk.Frame):
         fpath = "FeedbackAreas\\"+(str(self.controller.sport.get()))+"\\" + (str(self.controller.technique.get())) + ".json"
         feedbackDict = {}
         #load to dictionary
-        with open(os.path.abspath(fpath)) as file:
-            feedbackDict = json.load(file)
-        desc = feedbackDict["description"]
+        try:
+            with open(os.path.abspath(fpath)) as file:
+                feedbackDict = json.load(file)
+            desc = feedbackDict["description"]
+        except:
+            desc = "Error: No Description Found"
         # add new lines on full stops
-        desc = desc.replace(".",".\n")
+        desc = desc.replace(". ",".\n")
         # open toplevel window of description
         notice= tk.Toplevel(self.controller)
         notice.title("Description")
         fontlabel = tkfont.Font(family='Helvetica', size=11)
-        label = tk.Label(notice, text= desc, font=fontlabel,padx=10,pady=30)
+        label = tk.Label(notice, text= desc, font=fontlabel,padx=10,pady=30,justify="left")
         label.pack()
 
     # output the description of the sport and instructions to a seperate to the window
@@ -307,16 +330,19 @@ class chooseVideoInput(tk.Frame):
         fpath = "FeedbackAreas\\"+(str(self.controller.sport.get()))+"\\" + (str(self.controller.technique.get())) + ".json"
         feedbackDict = {}
         #load to dictionary
-        with open(os.path.abspath(fpath)) as file:
-            feedbackDict = json.load(file)
-        desc = feedbackDict["sportdescription"]
+        try:
+            with open(os.path.abspath(fpath)) as file:
+                feedbackDict = json.load(file)
+            desc = feedbackDict["sportdescription"]
+        except:
+            desc = "Error: No Description Found"
         # add new lines on full stops
-        desc = desc.replace(".",".\n")
+        desc = desc.replace(". ",".\n")
         # open toplevel window of description
         notice= tk.Toplevel(self.controller)
         notice.title("Description")
         fontlabel = tkfont.Font(family='Helvetica', size=11)
-        label = tk.Label(notice, text= desc, font=fontlabel,padx=10,pady=30)
+        label = tk.Label(notice, text= desc, font=fontlabel,padx=10,pady=30,justify="left")
         label.pack()
 
 
@@ -336,12 +362,12 @@ class recordInput(tk.Frame):
         # scroll bar to allow the user to set a countdown to get in position (30 second limit)
         label3 = tk.Label(self, text="How many seconds for the countdown?", font=textFont)
         label3.pack(side="top", fill="x", pady=10)
-        countdown = tk.Scale(self, from_=0, to=30, orient="horizontal",command=self.countdownValue)
+        countdown = tk.Scale(self, from_=1, to=30, orient="horizontal",command=self.countdownValue)
         countdown.pack()
         # scroll bar to allow user to set length of video (30 second limit)
         label4 = tk.Label(self, text="How many seconds for the recording process ", font=textFont)
         label4.pack(side="top", fill="x", pady=10)
-        record = tk.Scale(self, from_=0, to=30, orient="horizontal",command=self.recordValue)
+        record = tk.Scale(self, from_=5, to=30, orient="horizontal",command=self.recordValue)
         record.pack()
         # start button
         label5 = tk.Label(self, text="Press start when you are ready to start ", font=textFont)
@@ -532,8 +558,8 @@ class historyGUI(tk.Frame):
         # grid interface
         self.grid(sticky="new")
         self.columnconfigure(0,weight=0)
-        self.columnconfigure((1,2),weight=1)
-        self.columnconfigure(3,weight=0)
+        self.columnconfigure(1,weight=1)
+        self.columnconfigure(3,weight=1)
         self.rowconfigure(0,weight=0)
         label = tk.Label(self, text="Tracking History", font=controller.title_font)
         label.grid(row=0,column=1)
@@ -543,22 +569,24 @@ class historyGUI(tk.Frame):
             historyList = os.listdir(os.path.abspath(fname))
             for history in historyList:
                 # add rows depending on number of folders
-                self.rowconfigure(rowNum,weight=0)
+                self.rowconfigure(rowNum,weight=0,uniform="a",pad=10)
                 # folder name
                 label = tk.Label(self, text=history)
-                label.grid(row=rowNum,column=0)
+                label.grid(row=rowNum,column=0,padx=15)
                 # button to regenerate feedback and go to ouput feedback
-                button = tk.Button(self, text=history,
+                button = tk.Button(self, text="Track Technique",
                                 command=partial(self.setButton,history,controller,parent)).grid(row=rowNum,column=1)
                 # allow user to delete folder including points and images
                 button2 = tk.Button(self, text="Delete",
-                                command=partial(self.deleteHistory,history,parent)).grid(row=rowNum,column=2)
+                                command=partial(self.deleteHistory,history,parent)).grid(row=rowNum,column=3,padx=5)
                 btnList.append(button)
                 rowNum+=1
             # back to menu
+            self.rowconfigure(rowNum,weight=1)
             backButton = tk.Button(self, text="Back",
                                 command=lambda:controller.show_frame("MenuGUI"))
-            backButton.grid(row=rowNum,column=3)
+            
+            backButton.grid(row=rowNum,column=3,sticky="se",padx=10,pady=10)
 
         except FileNotFoundError:
             print("")
