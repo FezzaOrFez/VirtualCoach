@@ -63,8 +63,10 @@ def processRefImages(sport,exerciseName):
         # cv2 gets images in BGR colour and so requires conversion
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
         # crop to preprocessed size specified in the feedback areas json file
+        cropArea = []
         try:
-            im = im[feedbackDict["referenceCrop"][0]:feedbackDict["referenceCrop"][1],feedbackDict["referenceCrop"][2]:feedbackDict["referenceCrop"][3]]
+            cropArea = feedbackDict["referenceCrop"]
+            im = im[cropArea[0]:cropArea[1],cropArea[2]:cropArea[3]]
         except:
             im = im
         processedImages.append(im)
@@ -81,7 +83,7 @@ def inputVideo(technique):
     # opens file explorer in tkinter window
     tkinter.Tk().withdraw()
     videoName = filedialog.askopenfilename()
-
+    
     #opens file in video capture object
     videoLink = cv2.VideoCapture(videoName)
     #check file is real/open
@@ -205,6 +207,8 @@ def recordVideo(technique,countdown,timing):
 
     #open video file
     videoLink = cv2.VideoCapture("userRecordedVideo.avi")
+    #remove video for security
+    os.remove("userRecordedVideo.avi")
     #check file is open
     if not videoLink.isOpened():
         print("Error: could not open video file")
@@ -227,8 +231,7 @@ def recordVideo(technique,countdown,timing):
             else:
                 break
         videoLink.release()
-        #remove video for security
-        os.remove("userRecordedVideo.avi")
+        
         
 # Function to match reference frames to their closest points in the user technique
 # reduces number to equal to reference frames amount
@@ -313,7 +316,8 @@ def calculateFeedback(currentTechnique, pointsList, currentSport):
             if FeedbackArea.type == "Distance":
                 try:
                     #calculate the users distance between two points
-                    userDistance = calcDistance(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]])
+                    if len(FeedbackArea.points) >= 2:
+                        userDistance = calcDistance(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]])
                 except TypeError:
                     userAngle=0
                 #find referenceTechnique
@@ -321,7 +325,8 @@ def calculateFeedback(currentTechnique, pointsList, currentSport):
                     if x.technique == currentTechnique:
                         try:
                             #calculate the reference distance between two points
-                            refDistance = calcDistance(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]])
+                            if len(FeedbackArea.points) <= 2:
+                                refDistance = calcDistance(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]])
                         except TypeError:
                             # if human pose estimation cant find point it returns none for that coordinate, and so cannot be used in calculations
                             refDistance = 0
@@ -335,7 +340,7 @@ def calculateFeedback(currentTechnique, pointsList, currentSport):
                     # if the provided area has 3 hpe points calculate the angle between the three for user
                     if len(FeedbackArea.points) < 3:
                         userAngle = calcAngle(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]],(0,pointsList[framesCount][FeedbackArea.points[1]][1]))
-                    else:
+                    elif len(FeedbackArea.points) >= 3:
                         # if not calculate the angle difference between the two points and a point on the same x axis as the middle point
                         userAngle = calcAngle(pointsList[framesCount][FeedbackArea.points[0]], pointsList[framesCount][FeedbackArea.points[1]], pointsList[framesCount][FeedbackArea.points[2]])
 
@@ -347,9 +352,9 @@ def calculateFeedback(currentTechnique, pointsList, currentSport):
                     if x.technique == currentTechnique:
                         try:
                             # if the provided area has 3 hpe points calculate the angle between the three for user
-                            if len(FeedbackArea.points) < 2:
+                            if len(FeedbackArea.points) < 3:
                                 refAngle = calcAngle(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]],(0,x.points[framesCount][FeedbackArea.points[1]][0]))
-                            else:
+                            elif len(FeedbackArea.points) >= 3:
                                 # if not calculate the angle difference between the two points and a point on the same x axis as the middle point
                                 refAngle = calcAngle(x.points[framesCount][FeedbackArea.points[0]], x.points[framesCount][FeedbackArea.points[1]],x.points[framesCount][FeedbackArea.points[1]])
                         except TypeError:

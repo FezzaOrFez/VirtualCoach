@@ -190,6 +190,9 @@ class chooseSportGUI(tk.Frame):
         sportList = os.listdir(os.path.abspath(fname))
         # create a button for each sport to allow user to choose
         rowNum = 1
+        if sportList == []:
+            labelEmpty = tk.Label(self, text="No Sports Found in FeedbackAreas Folder")
+            labelEmpty.grid(row = rowNum, column=1)
         for sport in sportList:
             self.rowconfigure(rowNum,weight=0)
             button = tk.Button(self, text=sport,height=2,width=20,
@@ -229,6 +232,9 @@ class chooseTechniqueGUI(tk.Frame):
         try:
             # get technique from chosen sport folder
             techniqueList = (os.listdir(os.path.abspath(fname+"\\" + str(label["text"]))))
+            if techniqueList == []:
+                labelEmpty = tk.Label(self, text="No Technique Found in " + str(label["text"]) + " Folder")
+                labelEmpty.grid(row = rowNum, column=1)
             for technique in techniqueList:
                 self.rowconfigure(rowNum,weight=0)
                 # techniques stored as json files and added as strings of file names
@@ -300,7 +306,7 @@ class chooseVideoInput(tk.Frame):
             notice= tk.Toplevel(self.controller)
             notice.title("Error")
             fontlabel = tkfont.Font(family='Helvetica', size=11)
-            label = tk.Label(notice, text= "File could not be openned", font=fontlabel,padx=10,pady=30)
+            label = tk.Label(notice, text= "File could not be opened", font=fontlabel,padx=10,pady=30)
             label.pack()
         
     # output the description of the technique and instructions to a seperate to the window
@@ -308,6 +314,7 @@ class chooseVideoInput(tk.Frame):
         # get json file of technique
         fpath = "FeedbackAreas\\"+(str(self.controller.sport.get()))+"\\" + (str(self.controller.technique.get())) + ".json"
         feedbackDict = {}
+        desc = ""
         #load to dictionary
         try:
             with open(os.path.abspath(fpath)) as file:
@@ -329,6 +336,7 @@ class chooseVideoInput(tk.Frame):
         # get json file of technique
         fpath = "FeedbackAreas\\"+(str(self.controller.sport.get()))+"\\" + (str(self.controller.technique.get())) + ".json"
         feedbackDict = {}
+        desc = ""
         #load to dictionary
         try:
             with open(os.path.abspath(fpath)) as file:

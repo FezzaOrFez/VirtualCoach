@@ -104,6 +104,8 @@ def poseEstImages(imageList):
             if points[partA] and points[partB]:
                 cv2.line(imSkeleton, points[partA], points[partB], (255, 255, 0), 2)
                 cv2.circle(imSkeleton, points[partA], 8, (255, 0, 0), thickness=-1, lineType=cv2.FILLED)
+                if partB == 10 or partB == 13 or partB == 7 or partB == 4:
+                    cv2.circle(imSkeleton, points[partB], 8, (255, 0, 0), thickness=-1, lineType=cv2.FILLED)
         # add to the lists
         pointsArray.append(points)
         HPEdImages.append(imSkeleton)
