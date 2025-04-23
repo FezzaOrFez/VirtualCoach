@@ -142,21 +142,34 @@ def cropVideo(technique):
     highest = 100000
     count = 0
     highestHead = 0
+    
     for points in pointsArray:
-        if points[0][1] < highest:
-            highest = points[0][1]
-            highestHead = count
+        try:
+            if points[0][1] < highest:
+                highest = points[0][1]
+                highestHead = count
+        except TypeError:
+            highest = highest
+            highestHead = highestHead
         count += 1
+    
     
     #crop all frames and change all length to reference length and width proportional to the length
     frameCropped = []
     height, width, channels = HPEdImages[0].shape
     for frame in usersTechnique.frames:
-        cropped = frame[int(pointsArray[highestHead][0][1])-25:height,0:width]
+        try:
+            cropped = frame[int(pointsArray[highestHead][0][1])-25:height,0:width]
+        except TypeError:
+            cropped = frame
         h, w, channels = referShape.shape
         r = h / float(cropped.shape[0])
-        dim = (int(cropped.shape[1] * r),h)
-        frame = cv2.resize(cropped, dim,interpolation=cv2.INTER_AREA)
+        if int(cropped.shape[1] * r) < h:
+            dim = (int(cropped.shape[1] * r),h)
+            frame = cv2.resize(cropped, dim,interpolation=cv2.INTER_AREA)
+        else:
+            frame = frame
+        
         # append to list
         frameCropped.append(frame)
     usersTechnique.frames = frameCropped
