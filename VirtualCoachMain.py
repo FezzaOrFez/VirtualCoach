@@ -140,17 +140,24 @@ def cropVideo(technique):
     pointsArray, HPEdImages = HumanPoseEstimation.poseEstImages(quickList)
     # loop through to find highest point
     highest = 100000
+    lowest = 0
     count = 0
     highestHead = 0
+    lowestHead = 0
     
     for points in pointsArray:
         try:
             if points[0][1] < highest:
                 highest = points[0][1]
                 highestHead = count
+            if points[10][1] > lowest:
+                lowest = points[10][1]
+                lowestHead = count
         except TypeError:
             highest = highest
+            lowest = lowest
             highestHead = highestHead
+            lowestHead = lowestHead
         count += 1
     
     
@@ -159,16 +166,16 @@ def cropVideo(technique):
     height, width, channels = HPEdImages[0].shape
     for frame in usersTechnique.frames:
         try:
-            cropped = frame[int(pointsArray[highestHead][0][1])-25:height,0:width]
+            cropped = frame[int(pointsArray[highestHead][0][1])-10:int(pointsArray[lowestHead][10][1])+25,0:width]
         except TypeError:
             cropped = frame
         h, w, channels = referShape.shape
         r = h / float(cropped.shape[0])
-        if int(cropped.shape[1] * r) < h:
+        if int(cropped.shape[1] * r) < h*r:
             dim = (int(cropped.shape[1] * r),h)
             frame = cv2.resize(cropped, dim,interpolation=cv2.INTER_AREA)
         else:
-            frame = frame
+            frame = cropped
         
         # append to list
         frameCropped.append(frame)
@@ -401,13 +408,13 @@ def outputFeedback(differencesList):
     poor = []
     needImprovement = []
     for areaOfImpro in differencesList:
-        if areaOfImpro[1] < 6:
+        if areaOfImpro[1] < 10:
             perfect.append(areaOfImpro)
-        elif areaOfImpro[1] < 10:
-            good.append(areaOfImpro)
         elif areaOfImpro[1] < 15:
-            ok.append(areaOfImpro)
+            good.append(areaOfImpro)
         elif areaOfImpro[1] < 20:
+            ok.append(areaOfImpro)
+        elif areaOfImpro[1] < 25:
             poor.append(areaOfImpro)
         else:
             needImprovement.append(areaOfImpro)
@@ -437,7 +444,7 @@ def outputFeedback(differencesList):
         provideFeedback.append("Perfect Areas:")
         for i in perfect:
             provideFeedback.append(("Area of Tracking: "+str(i[0].area) +", Percentage Difference: "+str(round(i[1],2))))
-    feedbackList.clear()
+    
 
 # Add to history
 def sendToHistory(currentTechnique):
@@ -456,13 +463,19 @@ def sendToHistory(currentTechnique):
         fpath = os.path.abspath(fname)
     
     # create dictionary of just points
-    jsonPoints = {
-        "points": usersTechnique.points
+    areaList = []
+    percList = []
+    for dif in feedbackList:
+        percList.append(dif[1])
+        areaList.append(dif[0].area)
+    jsonFeedback = {
+        "percentage": percList,
+        "area": areaList
     }
     # serialize points into a json object
-    jsx = json.dumps(jsonPoints)
+    jsx = json.dumps(jsonFeedback)
     # dump into json file
-    with open(fpath+'\\pointsData.json', 'w') as file:
+    with open(fpath+'\\feedbackData.json', 'w') as file:
         json.dump(jsx, file)
 
     try:
@@ -480,6 +493,23 @@ def sendToHistory(currentTechnique):
         # send file for encryption
         im = footageEncryption(cv2.cvtColor(usersTechnique.skeleton[count], cv2.COLOR_RGB2BGR),imagePath)
         count+=1
+    # reference images
+    try:
+        # make directory in folder for skeleton images
+        fpath = os.path.abspath(fname)
+        fpath = fpath + "\\referenceList"
+        os.makedirs(fpath)
+    except FileExistsError:
+        # if file exists just create an absolute path
+        fpath = os.path.abspath(fname)
+    count = 0
+    # write skeleton image to folder
+    for ref in referenceTechniques:
+        for skele in ref.skeleton:
+            imagePath = fpath+'\\ref_skeleton_'+ str(count) +'.jpg'
+            # send file for encryption
+            im = footageEncryption(cv2.cvtColor(skele, cv2.COLOR_RGB2BGR),imagePath)
+            count+=1
 
 # encryption file for security and Data Protection Act 2018 coverage
 def footageEncryption(im,imPath):

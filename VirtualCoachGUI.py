@@ -2,6 +2,7 @@ import tkinter as tk
 import os
 import cv2
 import json
+import time
 import matplotlib.pyplot as plt
 from PIL import Image, ImageTk
 from tkinter import font as tkfont
@@ -11,7 +12,8 @@ from shutil import rmtree
 
 import HumanPoseEstimation
 import VirtualCoachMain
-
+import Reference
+import feedbackArea
 
 # Quit Function for closing the application
 def QuitApp():
@@ -99,21 +101,24 @@ class App(tk.Tk):
                     technique = techRecieve[0]
                     self.technique.set(technique)
                     chosenSport = ""
-                    fname = "FeedbackAreas"
-                    sportList = os.listdir(os.path.abspath(fname))
-                    for sport in sportList:
-                        techniqueList = (os.listdir(os.path.abspath(fname+"\\" + sport)))
-                        if technique+".json" in techniqueList:
-                            chosenSport = sport
-
-                    self.sport.set(sport)
-                    # reference videos are prepared
-                    VirtualCoachMain.startUp(self.sport.get(),self.technique.get())
+                    # change to get feedback from stored
+                    
                     #points and skeletons are fetched from file
                     fname = "storedFeedback"
-                    fpath = fname + "\\" + self.historyFile.get() + "\\pointsData.json"
+                    fpath = fname + "\\" + self.historyFile.get() + "\\feedbackData.json"
                     with open(os.path.abspath(fpath)) as file:
                         feedbackDict = json.loads(json.load(file))
+
+                    fpath = fname + "\\" + self.historyFile.get() + "\\referenceList"
+                    refList = os.listdir(os.path.abspath(fpath))
+                    refIMGList = []
+                    inim = 1
+                    for x in refList:
+                        
+                        refImg = VirtualCoachMain.footageDecryption(os.path.abspath(fpath+"\\"+x))
+                        refImg = cv2.cvtColor(refImg, cv2.COLOR_RGB2BGR)
+                        inim+=1
+                        refIMGList.append(refImg)
 
                     fpath = fname + "\\" + self.historyFile.get() + "\\skeletonsList"
                     skelList = os.listdir(os.path.abspath(fpath))
@@ -126,11 +131,14 @@ class App(tk.Tk):
                         skelImg = cv2.cvtColor(skelImg, cv2.COLOR_RGB2BGR)
                         inim+=1
                         skelIMGList.append(skelImg)
-
                     VirtualCoachMain.usersTechnique.skeleton = skelIMGList
-                    VirtualCoachMain.usersTechnique.points = feedbackDict["points"]
-                    # calculate feedback on stored points
-                    VirtualCoachMain.calculateFeedback(technique,VirtualCoachMain.usersTechnique.points,chosenSport)
+                    VirtualCoachMain.referenceTechniques.append(Reference.Reference(self.technique.get(),None,[],refIMGList))
+                    feedbackList = []
+                    count = 0
+                    for difference in feedbackDict["percentage"]:
+                        feedbackList.append((feedbackArea.Feedback(feedbackDict["area"][count],None,None,None,None,None),difference))
+                        count += 1
+                    VirtualCoachMain.feedbackList = feedbackList
                     # refresh calc feedback window
                     self.refresh(afterWindow,container,"",False)
             
@@ -323,6 +331,8 @@ class chooseVideoInput(tk.Frame):
         except:
             desc = "Error: No Description Found"
         # add new lines on full stops
+        safetyInstructions = "Please be aware of your surroundings and other people when conducting exercises\nUse no weights or light weights when practicing with this application."
+        desc = safetyInstructions + "\n \n" + desc
         desc = desc.replace(". ",".\n")
         # open toplevel window of description
         notice= tk.Toplevel(self.controller)
@@ -501,6 +511,7 @@ class presentFeedback(tk.Frame):
         VirtualCoachMain.referenceTechniques = []
         VirtualCoachMain.feedbackList = []
         VirtualCoachMain.provideFeedback = []
+        VirtualCoachMain.feedbackList = []
         self.controller.show_frame("MenuGUI")
 
     # send to history and alert user
